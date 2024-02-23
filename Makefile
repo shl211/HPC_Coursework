@@ -1,18 +1,19 @@
-CC = g++
+CXX = g++
 CXXFLAGS = -std=c++11 -Wall -o2
-LDLIBS = -lboost_program_options -lblas
+TARGET = solver
+OBJS = LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
 HDRS = LidDrivenCavity.h SolverCG.h
+LDLIBS = -lboost_program_options -lblas
 
-default: LidDrivenCavitySolver
+default: $(TARGET)
 
-LidDrivenCavitySolver.o: LidDrivenCavitySolver.cpp $(HDRS)
+%.o : %.cpp $(HDRS)
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
 
-LidDrivenCavity.o: LidDrivenCavity.cpp $(HDRS)
+$(TARGET): $(OBJS)
+	$(CXX) -o $@ $^ $(LDLIBS)
 
-SolverCG.o: SolverCG.cpp SolverCG.h $(HDRS)
-
-LidDrivenCavitySolver: LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
-	g++ -o solver LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o $(LDLIBS)
+all: $(TARGET)
 
 .PHONY: clean
 
