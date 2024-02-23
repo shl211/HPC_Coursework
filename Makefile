@@ -1,20 +1,19 @@
+CC = g++
+CXXFLAGS = -std=c++11 -Wall -o2
+LDLIBS = -lboost_program_options -lblas
+HDRS = LidDrivenCavity.h SolverCG.h
+
 default: LidDrivenCavitySolver
 
-#create object files
-LidDrivenCavitySolver.o: LidDrivenCavitySolver.cpp LidDrivenCavity.h
-	g++ -std=c++11 -Wall -o2 -o LidDrivenCavitySolver.o -c LidDrivenCavitySolver.cpp
+LidDrivenCavitySolver.o: LidDrivenCavitySolver.cpp $(HDRS)
 
-LidDrivenCavity.o: LidDrivenCavity.cpp LidDrivenCavity.h SolverCG.h 
-	g++ -std=c++11 -Wall -o2 -o LidDrivenCavity.o -c LidDrivenCavity.cpp
+LidDrivenCavity.o: LidDrivenCavity.cpp $(HDRS)
 
-SolverCG.o: SolverCG.cpp SolverCG.h
-	g++ -std=c++11 -Wall -o2 -o SolverCG.o -c SolverCG.cpp
+SolverCG.o: SolverCG.cpp SolverCG.h $(HDRS)
 
-#link
 LidDrivenCavitySolver: LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
-	g++ -o solver LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o -lboost_program_options -lblas
+	g++ -o solver LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o $(LDLIBS)
 
-#clean
 .PHONY: clean
 
 clean:
