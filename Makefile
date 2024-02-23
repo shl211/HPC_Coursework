@@ -12,4 +12,10 @@ SolverCG.o: SolverCG.cpp SolverCG.h
 
 #link
 LidDrivenCavitySolver: LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
-	g++ -o LidDrivenCavitySolver LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o -lboost_program_options -lblas
+	g++ -o solver LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o -lboost_program_options -lblas
+
+#clean
+.PHONY: clean
+
+clean:
+	-rm -f *.o solver
