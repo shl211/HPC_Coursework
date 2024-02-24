@@ -50,7 +50,7 @@ SolverCG::~SolverCG()
 void SolverCG::Solve(double* b, double* x) {
     unsigned int n = Nx*Ny;                     //total number of grid points
     int k;
-    double alpha;//variables for conjufate gradient algorithm
+    double alpha;                               //variables for conjugate gradient algorithm
     double beta;
     double eps;//error
     double tol = 0.001;                             
@@ -63,12 +63,12 @@ void SolverCG::Solve(double* b, double* x) {
     }
 
     ApplyOperator(x, t);                        //discretise nabla psi with second order central difference, store coefficients in t (effectively Ax)
-    cblas_dcopy(n, b, 1, r, 1);        // r_0 = b (i.e. b), so r denotes vorticity
+    cblas_dcopy(n, b, 1, r, 1);                 // r_0 = b (i.e. b), so r denotes vorticity
     ImposeBC(r);                                //fluid at rest, so apply initial vorticity BC to r
 
     cblas_daxpy(n, -1.0, t, 1, r, 1);           //r=r-t (i.e. r = b - Ax) gives first step of conjugate gradient algorithm
-    Precondition(r, z);                         //does something to r and writes in z, r unchanged?
-    cblas_dcopy(n, z, 1, p, 1);        // p_0 = r_0
+    Precondition(r, z);                         //Precondition the problem, preconditioned matrix in z
+    cblas_dcopy(n, z, 1, p, 1);                 // p_0 = r_0 (where r_0 is the preconditioned matrix z)
 
     k = 0;//initialise counter
     do {
@@ -78,22 +78,22 @@ void SolverCG::Solve(double* b, double* x) {
 
         alpha = cblas_ddot(n, t, 1, p, 1);      // alpha = p_k^T A p_k
         alpha = cblas_ddot(n, r, 1, z, 1) / alpha; // compute alpha_k
-        beta  = cblas_ddot(n, r, 1, z, 1);  // z_k^T r_k
+        beta  = cblas_ddot(n, r, 1, z, 1);  // z_k^T r_k (for later in the algorithm)
 
         cblas_daxpy(n,  alpha, p, 1, x, 1);  // x_{k+1} = x_k + alpha_k p_k
         cblas_daxpy(n, -alpha, t, 1, r, 1); // r_{k+1} = r_k - alpha_k A p_k
 
-        eps = cblas_dnrm2(n, r, 1);
+        eps = cblas_dnrm2(n, r, 1);         //norm r_{k+1} is error between algorithm and solution, check error tolerance
 
         if (eps < tol*tol) {
             break;
         }
-        Precondition(r, z);
-        beta = cblas_ddot(n, r, 1, z, 1) / beta;
+        Precondition(r, z);                         //precondition r_{k+1} and store in z
+        beta = cblas_ddot(n, r, 1, z, 1) / beta;    //compute beta_k
 
-        cblas_dcopy(n, z, 1, t, 1);
-        cblas_daxpy(n, beta, p, 1, t, 1);
-        cblas_dcopy(n, t, 1, p, 1);
+        cblas_dcopy(n, z, 1, t, 1);                 //copy z into t, so t now holds preconditioned r
+        cblas_daxpy(n, beta, p, 1, t, 1);           //t = t + beta p i.e. p_{k+1} = r_{k+1} + beta_k p_k
+        cblas_dcopy(n, t, 1, p, 1);                 //copy p_{k+1} from t into p
 
     } while (k < 5000); // Set a maximum number of iterations
 
@@ -106,11 +106,11 @@ void SolverCG::Solve(double* b, double* x) {
 }
 
 /**
- * @brief Computes discretisation of nabla \f$ \nabla \f$ ( \f$ \psi \f$ or \f$ \omega \f$ ) via equation: 
+ * @brief Computes discretisation of nabla^2 \f$ \nabla^2 \f$ ( \f$ \psi \f$ or \f$ \omega \f$ ) via equation: 
  \f$ \omega_{i,j}^n = -(\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltax)^2}
- +\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltay)^2}) \f$
- * @param in    pointer to matrix containing streamfunctions at time t
- * @param out   pointer to matrix containing interior voriticity at time t
+ +\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltay)^2}) \f$ for interior grid points
+ * @param in    pointer to matrix containing psi or omega at time t
+ * @param out   pointer to matrix containing nabla^2psi or nabla^2 omega at time t
  */
 void SolverCG::ApplyOperator(double* in, double* out) {
     // Assume ordered with y-direction fastest (column-by-column)
@@ -132,9 +132,9 @@ void SolverCG::ApplyOperator(double* in, double* out) {
 }
 
 /**
- * @brief
- * @param in
- * @param out
+ * @brief Precondition matrix to reduce condition number and aid convergence of solution. Problem is now preceonditioned problem.
+ * @param in    Pointer to array containing original matrix
+ * @param out   Pointer to array containing preeconditioned matrix
  */
 void SolverCG::Precondition(double* in, double* out) {
     int i, j;
@@ -143,31 +143,31 @@ void SolverCG::Precondition(double* in, double* out) {
     double factor = 2.0*(dx2i + dy2i);
     for (i = 1; i < Nx - 1; ++i) {
         for (j = 1; j < Ny - 1; ++j) {                  
-            out[IDX(i,j)] = in[IDX(i,j)]/factor;            //divides all interior grid points by factor?
+            out[IDX(i,j)] = in[IDX(i,j)]/factor;            //apply precondition, reduce condition number
         }
     }
     // Boundaries
-    for (i = 0; i < Nx; ++i) {
-        out[IDX(i, 0)] = in[IDX(i,0)];                      //impose boundary conditions from in to out?
-        out[IDX(i, Ny-1)] = in[IDX(i, Ny-1)];
+    for (i = 0; i < Nx; ++i) {                              //maintain same boundary conditions
+        out[IDX(i, 0)] = in[IDX(i,0)];                      //bottom
+        out[IDX(i, Ny-1)] = in[IDX(i, Ny-1)];               //top
     }
 
     for (j = 0; j < Ny; ++j) {
-        out[IDX(0, j)] = in[IDX(0, j)];
-        out[IDX(Nx - 1, j)] = in[IDX(Nx - 1, j)];
+        out[IDX(0, j)] = in[IDX(0, j)];                     //left
+        out[IDX(Nx - 1, j)] = in[IDX(Nx - 1, j)];           //right
     }
 }
 
 
 /**
- * @brief Assign vorticity initial boundary conditions (zero to each side)
- * @param inout     pointer to array containing vorticity at timestep t 
+ * @brief Assign initial boundary conditions (zero to each side)
+ * @param inout     Pointer to array containing streamfunctions at timestep t 
  */
 void SolverCG::ImposeBC(double* inout) {
         // Boundaries
     for (int i = 0; i < Nx; ++i) {
-        inout[IDX(i, 0)] = 0.0;             //zero BC on top surface
-        inout[IDX(i, Ny-1)] = 0.0;          //zero BC on bottom surface
+        inout[IDX(i, 0)] = 0.0;             //zero BC on bottom surface
+        inout[IDX(i, Ny-1)] = 0.0;          //zero BC on top surface
     }
 
     for (int j = 0; j < Ny; ++j) {
