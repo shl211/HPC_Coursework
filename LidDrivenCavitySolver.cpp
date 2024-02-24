@@ -6,8 +6,12 @@ namespace po = boost::program_options;
 
 #include "LidDrivenCavity.h"
 
+/**
+ * @brief Main program that allows for user specification of problem followed by implementation of time and spatial solvers
+ */
 int main(int argc, char **argv)
 {
+    //options for user to define problem
     po::options_description opts(
         "Solver for the 2D lid-driven cavity incompressible flow problem");
     opts.add_options()
@@ -37,22 +41,22 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    LidDrivenCavity* solver = new LidDrivenCavity();
+    LidDrivenCavity* solver = new LidDrivenCavity();                            //define solver and specify problem with user inputs
     solver->SetDomainSize(vm["Lx"].as<double>(), vm["Ly"].as<double>());
     solver->SetGridSize(vm["Nx"].as<int>(),vm["Ny"].as<int>());
     solver->SetTimeStep(vm["dt"].as<double>());
     solver->SetFinalTime(vm["T"].as<double>());
     solver->SetReynoldsNumber(vm["Re"].as<double>());
 
-    solver->PrintConfiguration();
+    solver->PrintConfiguration();                                               //print the solver configuration to user
 
-    solver->Initialise();
+    solver->Initialise();                                                       //initialise solver
 
-    solver->WriteSolution("ic.txt");
+    solver->WriteSolution("ic.txt");                                            //write initial state to file named ic.txt
 
-    solver->Integrate();
+    solver->Integrate();                                                        //perform time integration, implicitly calls spatial domain solver
 
-    solver->WriteSolution("final.txt");
+    solver->WriteSolution("final.txt");                                         //write the final solution to file named ic.txt
 
 	return 0;
 }
