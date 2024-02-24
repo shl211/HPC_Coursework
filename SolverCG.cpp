@@ -7,22 +7,32 @@ using namespace std;
 
 #include "SolverCG.h"
 
-#define IDX(I,J) ((J)*Nx + (I))
+#define IDX(I,J) ((J)*Nx + (I)) //define a new operation
 
+/** 
+ * @brief Constructor to create the solver by specifying the problem spatial domain \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$
+ * @param pNx   Number of grid points in x direction
+ * @param pNy   Number of grid points in y direction
+ * @param pdx   Grid spacing in x direction, should satisfy pdx = Lx/(pNx - 1) where Lx is domain length in x direction
+ * @param pdy   Grid spacing in y direction, should satisfy pdy = Ly/(pNy - 1) where Ly is domain length in y direction
+ */
 SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy)
 {
     dx = pdx;
     dy = pdy;
     Nx = pNx;
     Ny = pNy;
-    int n = Nx*Ny;
-    r = new double[n];
+    int n = Nx*Ny;                  //total number of grid points
+    r = new double[n];              //allocate temp arrays size with total number of grid points
     p = new double[n];
     z = new double[n];
-    t = new double[n]; //temp
+    t = new double[n];              //temp
 }
 
 
+/**
+ * @brief Destructor to deallocate memory called on heap by solver
+ */
 SolverCG::~SolverCG()
 {
     delete[] r;
@@ -31,37 +41,42 @@ SolverCG::~SolverCG()
     delete[] t;
 }
 
-
+/**
+ * @brief Executes conjugate gradient algorithm to solve the spatial problem \f$ Ax-b \f$, where A contains second order 
+ * central difference coefficients and boundary conditions, x is streamfunctions, and b is vorticity
+ * @param b     Pointer to array containing the vorticity at each grid point
+ * @param x     Pointer to array containing the streamfunctions at each grid point
+ */
 void SolverCG::Solve(double* b, double* x) {
-    unsigned int n = Nx*Ny;
+    unsigned int n = Nx*Ny;                     //total number of grid points
     int k;
-    double alpha;
+    double alpha;//variables for conjufate gradient algorithm
     double beta;
-    double eps;
-    double tol = 0.001;
+    double eps;//error
+    double tol = 0.001;                             
 
-    eps = cblas_dnrm2(n, b, 1);
-    if (eps < tol*tol) {
-        std::fill(x, x+n, 0.0);
+    eps = cblas_dnrm2(n, b, 1);                 //if 2-norm of b is lower than tolerance squared, then b practically zero
+    if (eps < tol*tol) {                        
+        std::fill(x, x+n, 0.0);                 //hence solution x is practically 0, output the 2-norm and exit function
         cout << "Norm is " << eps << endl;
         return;
     }
 
-    ApplyOperator(x, t);
-    cblas_dcopy(n, b, 1, r, 1);        // r_0 = b (i.e. b)
-    ImposeBC(r);
+    ApplyOperator(x, t);                        //discretise nabla psi with second order central difference, store coefficients in t (effectively Ax)
+    cblas_dcopy(n, b, 1, r, 1);        // r_0 = b (i.e. b), so r denotes vorticity
+    ImposeBC(r);                                //fluid at rest, so apply initial vorticity BC to r
 
-    cblas_daxpy(n, -1.0, t, 1, r, 1);
-    Precondition(r, z);
+    cblas_daxpy(n, -1.0, t, 1, r, 1);           //r=r-t (i.e. r = b - Ax) gives first step of conjugate gradient algorithm
+    Precondition(r, z);                         //does something to r and writes in z, r unchanged?
     cblas_dcopy(n, z, 1, p, 1);        // p_0 = r_0
 
-    k = 0;
+    k = 0;//initialise counter
     do {
         k++;
         // Perform action of Nabla^2 * p
-        ApplyOperator(p, t);
+        ApplyOperator(p, t);                    //compute nabla^2 p and store in t (effectively A*p_k)
 
-        alpha = cblas_ddot(n, t, 1, p, 1);  // alpha = p_k^T A p_k
+        alpha = cblas_ddot(n, t, 1, p, 1);      // alpha = p_k^T A p_k
         alpha = cblas_ddot(n, r, 1, z, 1) / alpha; // compute alpha_k
         beta  = cblas_ddot(n, r, 1, z, 1);  // z_k^T r_k
 
@@ -90,40 +105,50 @@ void SolverCG::Solve(double* b, double* x) {
     cout << "Converged in " << k << " iterations. eps = " << eps << endl;
 }
 
-
+/**
+ * @brief Computes discretisation of nabla \f$ \nabla \f$ ( \f$ \psi \f$ or \f$ \omega \f$ ) via equation: 
+ \f$ \omega_{i,j}^n = -(\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltax)^2}
+ +\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltay)^2}) \f$
+ * @param in    pointer to matrix containing streamfunctions at time t
+ * @param out   pointer to matrix containing interior voriticity at time t
+ */
 void SolverCG::ApplyOperator(double* in, double* out) {
     // Assume ordered with y-direction fastest (column-by-column)
-    double dx2i = 1.0/dx/dx;
+    double dx2i = 1.0/dx/dx;                                    //optimised code, compute and store 1/(dx)^2 and 1/(dy)^2
     double dy2i = 1.0/dy/dy;
-    int jm1 = 0, jp1 = 2;
-    for (int j = 1; j < Ny - 1; ++j) {
-        for (int i = 1; i < Nx - 1; ++i) {
-            out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
+    int jm1 = 0, jp1 = 2;                                       //jm1 is j-1, jp1 is j+1; this allows for vectorisation of operation
+    for (int j = 1; j < Ny - 1; ++j) {                          //compute this only for interior grid points
+        for (int i = 1; i < Nx - 1; ++i) {                      //i denotes x grids, j denotes y grids
+            out[IDX(i,j)] = ( -     in[IDX(i-1, j)]             //note predefinition of IDX(i,j) = i*Nx + j, which yields array index
                               + 2.0*in[IDX(i,   j)]
-                              -     in[IDX(i+1, j)])*dx2i
+                              -     in[IDX(i+1, j)])*dx2i       //calculates first part of equation
                           + ( -     in[IDX(i, jm1)]
                               + 2.0*in[IDX(i,   j)]
-                              -     in[IDX(i, jp1)])*dy2i;
+                              -     in[IDX(i, jp1)])*dy2i;      //calculates second part of equation
         }
-        jm1++;
+        jm1++;                                                  //jm1 and jp1 incremented separately outside i loop
         jp1++;
     }
 }
 
-
+/**
+ * @brief
+ * @param in
+ * @param out
+ */
 void SolverCG::Precondition(double* in, double* out) {
     int i, j;
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;
     double factor = 2.0*(dx2i + dy2i);
     for (i = 1; i < Nx - 1; ++i) {
-        for (j = 1; j < Ny - 1; ++j) {
-            out[IDX(i,j)] = in[IDX(i,j)]/factor;
+        for (j = 1; j < Ny - 1; ++j) {                  
+            out[IDX(i,j)] = in[IDX(i,j)]/factor;            //divides all interior grid points by factor?
         }
     }
     // Boundaries
     for (i = 0; i < Nx; ++i) {
-        out[IDX(i, 0)] = in[IDX(i,0)];
+        out[IDX(i, 0)] = in[IDX(i,0)];                      //impose boundary conditions from in to out?
         out[IDX(i, Ny-1)] = in[IDX(i, Ny-1)];
     }
 
@@ -133,16 +158,21 @@ void SolverCG::Precondition(double* in, double* out) {
     }
 }
 
+
+/**
+ * @brief Assign vorticity initial boundary conditions (zero to each side)
+ * @param inout     pointer to array containing vorticity at timestep t 
+ */
 void SolverCG::ImposeBC(double* inout) {
         // Boundaries
     for (int i = 0; i < Nx; ++i) {
-        inout[IDX(i, 0)] = 0.0;
-        inout[IDX(i, Ny-1)] = 0.0;
+        inout[IDX(i, 0)] = 0.0;             //zero BC on top surface
+        inout[IDX(i, Ny-1)] = 0.0;          //zero BC on bottom surface
     }
 
     for (int j = 0; j < Ny; ++j) {
-        inout[IDX(0, j)] = 0.0;
-        inout[IDX(Nx - 1, j)] = 0.0;
+        inout[IDX(0, j)] = 0.0;             //zero BC on left surface
+        inout[IDX(Nx - 1, j)] = 0.0;        //zero BC on right surface
     }
 
 }

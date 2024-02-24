@@ -1,5 +1,9 @@
 #pragma once
 
+/**
+ * @class
+ * @brief Describes an explicit forward time-integration serial solver to compute the spatial derivatives?
+ */
 class SolverCG
 {
 public:
@@ -9,11 +13,11 @@ public:
     void Solve(double* b, double* x);
 
 private:
-    double dx;
-    double dy;
-    int Nx;
-    int Ny;
-    double* r;
+    double dx;      ///grid spacing in x direction
+    double dy;      ///grid spacing in y direction
+    int Nx;         ///number of grid points in x direction
+    int Ny;         ///number of grid points in y direction
+    double* r;      ///temp variables
     double* p;
     double* z;
     double* t;
