@@ -56,7 +56,7 @@ int main(int argc, char **argv)
 
     solver->Integrate();                                                        //perform time integration, implicitly calls spatial domain solver
 
-    solver->WriteSolution("final.txt");                                         //write the final solution to file named ic.txt
+    solver->WriteSolution("final.txt");                                         //write the final solution to file named final.txt
 
 	return 0;
 }
