@@ -4,6 +4,7 @@ TARGET = solver
 OBJS = LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
 HDRS = LidDrivenCavity.h SolverCG.h
 LDLIBS = -lboost_program_options -lblas
+DOXYFILE = Doxyfile
 
 default: $(TARGET)
 
@@ -15,7 +16,10 @@ $(TARGET): $(OBJS)
 
 all: $(TARGET)
 
-.PHONY: clean
+.PHONY: clean doc
 
 clean:
 	-rm -f *.o solver
+
+doc:
+	doxygen Doxyfile
