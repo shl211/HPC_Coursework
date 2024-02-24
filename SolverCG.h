@@ -1,7 +1,7 @@
 #pragma once
 
 /**
- * @class
+ * @class SolverCG
  * @brief Describes an explicit forward time-integration serial solver to compute the spatial derivatives?
  */
 class SolverCG

@@ -5,6 +5,10 @@ using namespace std;
 
 class SolverCG;
 
+/**
+ * @class LidDrivenCavity
+ * @brief Solver to cmpute the time domain aspect of the lid driven cavity problem
+ */
 class LidDrivenCavity
 {
 public:
@@ -23,8 +27,8 @@ public:
     void PrintConfiguration();
 
 private:
-    double* v   = nullptr;
-    double* s   = nullptr;
+    double* v   = nullptr;//vorticity
+    double* s   = nullptr;//streamfunction
     double* tmp = nullptr;
 
     double dt   = 0.01;
