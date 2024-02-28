@@ -42,7 +42,7 @@ SolverCG::~SolverCG()
 }
 
 /**
- * @brief Executes conjugate gradient algorithm to solve the spatial problem \f$ Ax-b \f$, where A contains second order 
+ * @brief Executes conjugate gradient algorithm to solve the spatial problem \f$ Ax=b \f$, where A contains second order 
  * central difference coefficients and boundary conditions, x is streamfunctions, and b is vorticity
  * @param b     Pointer to array containing the vorticity at each grid point
  * @param x     Pointer to array containing the streamfunctions at each grid point
