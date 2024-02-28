@@ -174,5 +174,4 @@ void SolverCG::ImposeBC(double* inout) {
         inout[IDX(0, j)] = 0.0;             //zero BC on left surface
         inout[IDX(Nx - 1, j)] = 0.0;        //zero BC on right surface
     }
-
 }

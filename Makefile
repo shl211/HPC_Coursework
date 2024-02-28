@@ -5,6 +5,8 @@ OBJS = LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
 HDRS = LidDrivenCavity.h SolverCG.h
 LDLIBS = -lboost_program_options -lblas
 DOXYFILE = Doxyfile
+TESTTARGET = unittests
+TESTS = unittest.cpp
 
 default: $(TARGET)
 
@@ -16,10 +18,13 @@ $(TARGET): $(OBJS)
 
 all: $(TARGET)
 
-.PHONY: clean doc
-
-clean:
-	-rm -f *.o solver
-
 doc:
 	doxygen Doxyfile
+
+$(TESTTARGET):
+	$(CXX) $(CXXFLAGS) -o $@ unittest.cpp SolverCG.cpp $(LDLIBS)
+
+.PHONY: clean
+
+clean:
+	-rm -f *.o $(TARGET) $(TESTTARGET)
