@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <cstdlib>
 #include "SolverCG.h"
 
 #define BOOST_TEST_MODULE SolverCG
@@ -42,8 +43,8 @@ BOOST_AUTO_TEST_CASE(SolverCase2)
     const int l = 3;
     const double Lx = 2.0 / k;//correct domain for problem, such that sin sin fits boundary conditions
     const double Ly = 2.0 / l;
-    const int Nx = 100;
-    const int Ny = 100;
+    const int Nx = 10;
+    const int Ny = 10;
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
     int n = Nx*Ny;
@@ -56,9 +57,16 @@ BOOST_AUTO_TEST_CASE(SolverCase2)
     //compute actual b based off analytical solution
     
     //initialise arrays
+    std::srand(time(0));
     for(int i = 0; i < n; i++) {
         b[i] = 0.0;
-        x[i] = 0.0;
+        x[i] = (double) rand()/RAND_MAX;
+    }
+
+    for(int i = 0; i < Nx; ++i){
+        for(int j = 0; j < Ny; ++j) {
+            x[IDX(i,j)] = - sin(M_PI * k * i * dx) * sin(M_PI * l * j * dy);
+        }
     }
 
     for (int i = 0; i < Nx; ++i) {
