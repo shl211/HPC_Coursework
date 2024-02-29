@@ -38,12 +38,15 @@ BOOST_AUTO_TEST_CASE(SolverCase1)
 
 BOOST_AUTO_TEST_CASE(SolverCase2) 
 {
-    const int Nx = 10;
-    const int Ny = 10;
-    double dx = 0.001;
-    double dy = 0.001;    
+    const int k = 3;
+    const int l = 3;
+    const double Lx = 2.0 / k;//correct domain for problem, such that sin sin fits boundary conditions
+    const double Ly = 2.0 / l;
+    const int Nx = 100;
+    const int Ny = 100;
+    double dx = (double)Lx/(Nx - 1);
+    double dy = (double)Ly/(Ny - 1);    
     int n = Nx*Ny;
-    
     double *b = new double[n];
     double *x = new double[n];
     
@@ -57,8 +60,6 @@ BOOST_AUTO_TEST_CASE(SolverCase2)
         b[i] = 0.0;
         x[i] = 0.0;
     }
-    const int k = 3;
-    const int l = 3;
 
     for (int i = 0; i < Nx; ++i) {
         for (int j = 0; j < Ny; ++j) {
@@ -68,23 +69,18 @@ BOOST_AUTO_TEST_CASE(SolverCase2)
         }
     }
     
-    //for(int i = 0; i < n; ++i) {
-    //    std::cout << "b : " << i << " " << b[i] << std::endl;
-    //}
-    
     test.Solve(b,x);
     
     //compute actual x with analytical solution
     double* x_actual = new double[n];
     for(int i = 0; i < Nx; ++i){
         for(int j = 0; j < Ny; ++j) {
-            x_actual[IDX(i,j)] = sin(M_PI * k * i * dx) * sin(M_PI * l * j * dy);
+            x_actual[IDX(i,j)] = - sin(M_PI * k * i * dx) * sin(M_PI * l * j * dy);
         }
     }
-    
+
     //should be within the tolerance specified in solverCG
     for(int i = 0; i < n; i++) {
-        //std::cout << "Actual = " << x_actual[i] << " and Solver = " << x[i] << std::endl;
         BOOST_CHECK_SMALL(x[i]-x_actual[i],1e-3);
     }
 
