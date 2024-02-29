@@ -106,11 +106,11 @@ void SolverCG::Solve(double* b, double* x) {
 }
 
 /**
- * @brief Computes discretisation of nabla^2 \f$ \nabla^2 \f$ ( \f$ \psi \f$ or \f$ \omega \f$ ) via equation: 
+ * @brief Computes discretisation of -nabla^2 \f$ -\nabla^2 \f$ ( \f$ \psi \f$ or \f$ \omega \f$ ) via equation: 
  \f$ \omega_{i,j}^n = -(\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltax)^2}
  +\frac{\psi_{i+1,j}^n-2\psi_{i,j}^n+\psi_{i,j+1}^n}{(\Deltay)^2}) \f$ for interior grid points
  * @param in    pointer to matrix containing psi or omega at time t
- * @param out   pointer to matrix containing nabla^2psi or nabla^2 omega at time t
+ * @param out   pointer to matrix containing -nabla^2 psi or -nabla^2 omega at time t
  */
 void SolverCG::ApplyOperator(double* in, double* out) {
     // Assume ordered with y-direction fastest (column-by-column)
