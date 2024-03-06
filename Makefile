@@ -6,7 +6,7 @@ HDRS = LidDrivenCavity.h SolverCG.h
 LDLIBS = -lboost_program_options -lblas
 DOXYFILE = Doxyfile
 TESTTARGET = unittests
-TESTS = unittest.cpp
+TESTS = unittests.cpp LidDrivenCavity.cpp SolverCG.cpp
 
 default: $(TARGET)
 
@@ -21,8 +21,8 @@ all: $(TARGET)
 doc:
 	doxygen Doxyfile
 
-$(TESTTARGET):
-	$(CXX) $(CXXFLAGS) -o $@ unittest.cpp SolverCG.cpp $(LDLIBS)
+$(TESTTARGET): $(TESTS) 
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS)
 
 .PHONY: clean
 
