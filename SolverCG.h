@@ -4,9 +4,9 @@
  * @class SolverCG
  * @brief Describes a preconditioned conjugate gradient solver which solves the matrix equation Ax=b, with max iteration number of 5000,
 and error tolerance of 1e-3. In this context, A describes the coefficients of a second-order central-difference discretisation of the
-operator \f$ -\nabla^2 \f$, x describes the streamfunction and b describes the vorticity. The problem domain is  
- \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ is the domain length in x direction and \f$ L_y \f$ is the domain length in the
- y direction.
+operator \f$ -\nabla^2 \f$, x describes the streamfunction and b describes the vorticity. 
+The problem domain is \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ is the domain length in x direction and \f$ L_y \f$ is the 
+domain length in the y direction.
  */
 class SolverCG
 {
@@ -21,7 +21,7 @@ public:
     SolverCG(int pNx, int pNy, double pdx, double pdy);
     
     /**
-     * @brief Destructor
+     * @brief Destructor to deallocate memory
      */ 
     ~SolverCG();
 

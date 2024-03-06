@@ -32,7 +32,7 @@ int main(int argc, char **argv)
         ("verbose",    "Be more verbose.")
         ("help",       "Print help message.");
 
-    po::variables_map vm;
+    po::variables_map vm;                                                       //extract user inputs
     po::store(po::parse_command_line(argc, argv, opts), vm);
     po::notify(vm);
 
