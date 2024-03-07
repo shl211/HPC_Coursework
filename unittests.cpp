@@ -1,3 +1,6 @@
+/**
+ * @brief Boost unit tests of classes SolverCG and LidDrivenCavity
+ */
 #define BOOST_TEST_MODULE main
 #include <boost/test/included/unit_test.hpp>
 
@@ -13,77 +16,85 @@
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
 
-#define IDX(I,J) ((J)*Nx + (I)) //define a new operation
+/**
+ * @brief Macro to map matrix entry i,j onto it's corresponding location in memory, assuming column-wise matrix storage
+ * @param I     matrix index i denoting the ith row
+ * @param J     matrix index j denoting the jth columns
+ */
+#define IDX(I,J) ((J)*Nx + (I))                     //define a new operation to improve computation?
 
-//test the case where the input b is very close to zero, should output exaclty 0.0
-BOOST_AUTO_TEST_CASE(SolverCGNearZeroInput)
+/**
+ * @brief Test SolverCG::Solve where if input b is very close to zero, then output x should be exactly 0.0 for all entries
+ */
+BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
 {
-    const int Nx = 10;
+    const int Nx = 10;                                      //define grid and steps
     const int Ny = 10;
     double dx = 0.1;
     double dy = 0.1;    
-    int n = Nx*Ny;
+    int n = Nx*Ny;                                          //total number of grid points
     
-    double *b = new double[n];
+    double *b = new double[n];                              //allocate memory of input b and output x, denotes equation Ax = b
     double *x = new double[n];
     
-    SolverCG test(Nx,Ny,dx,dy);
+    SolverCG test(Nx,Ny,dx,dy);                             //create test solver
 
-    //first test out if b very small and close to 0
     for(int i = 0; i < n; i++) {
-        b[i] = 1e-8;
-    }
+        b[i] = 1e-8;                                        //100 element array with each element = 1e-8
+    }                                                       //2-norm of b is smaller than tol*tol where tol = 1e-3 as specified in SolverCG 
     
-    test.Solve(b,x);
+    test.Solve(b,x);                                        //Solve Ax=b for x
     
     for(int i = 0; i < n; i++) {
-        BOOST_CHECK_EQUAL(x[i],0.0);
-    }
+        BOOST_CHECK_EQUAL(x[i],0.0);                        //check all terms of x are exactly 0.0
+    }                                                       //use equal instead of close for double as 0.0 should be written into x
     
-    delete[] b;
+    delete[] b;                                             //deallocate memory
     delete[] x;
 }
 
-
-//for a sinusoidal case with zero BCs and random guess for x
-BOOST_AUTO_TEST_CASE(SolverCase2) 
+/** 
+ * @brief Sinusoidal test case Ax=b. Since A is the coefficients of the operator \f$ -\nabla^2 \f$, then the sinusoidal test case is
+ * \f$ - \pi ^2 (k^2 + l^2) \sin(k \pi x) \sin (l \pi y) \f$, on a domain \f$ (x,y) \in [0, \frac{2}{k}] \times [0, \frac{2}{l}] \f$. 
+ * Domain choice ensures zero boundary conditions on domain edge is imposed. The solution should satsify
+ * \f$ x = - \sin (k \pi x) \sin (l \pi y) \f$. First guess x is generated randomly in domain \f$ [0,1] \f$, with zero boundary conditions imposed.
+ */
+BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput) 
 {
-    const int k = 3;
+    const int k = 3;                                    //sin(k*pi*x)sin(l*pi*y)
     const int l = 3;
-    const double Lx = 2.0 / k;//correct domain for problem, such that sin sin fits boundary conditions
+    const double Lx = 2.0 / k;                          //correct domain for problem, such that sin sin has zero boundary conditions
     const double Ly = 2.0 / l;
-    const int Nx = 100;
+    const int Nx = 100;                                 //define number of grids with correct step sizes
     const int Ny = 100;
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
     int n = Nx*Ny;
-    double *b = new double[n];
+    double tol = 1e-3;                                  //tolerance as specified in SolverCG
+    double *b = new double[n];                          //allocate memory
     double *x = new double[n];
+    double* x_actual = new double[n];
+
+    SolverCG test(Nx,Ny,dx,dy);                         //create test solver
     
-    SolverCG test(Nx,Ny,dx,dy);
-    
-    //now test with sinusoidal analytical solution    
-    //compute actual b based off analytical solution
-    
-    //initialise arrays
     std::srand(time(0));
     for(int i = 0; i < n; i++) {
-        b[i] = 0.0;
-        x[i] = (double) rand()/RAND_MAX;
+        b[i] = 0.0;                                     //initialise b
+        x[i] = (double) rand()/RAND_MAX;                //randomise x in range of [0,1]
     }
     
     //impose zero BC on edges
     for (int i = 0; i < Nx; ++i) {
-        x[IDX(i, 0)] = 0.0;             //zero BC on bottom surface
-        x[IDX(i, Ny-1)] = 0.0;          //zero BC on top surface
+        x[IDX(i, 0)] = 0.0;                             //zero BC on bottom surface
+        x[IDX(i, Ny-1)] = 0.0;                          //zero BC on top surface
     }
 
     for (int j = 0; j < Ny; ++j) {
-        x[IDX(0, j)] = 0.0;             //zero BC on left surface
-        x[IDX(Nx - 1, j)] = 0.0;        //zero BC on right surface
+        x[IDX(0, j)] = 0.0;                             //zero BC on left surface
+        x[IDX(Nx - 1, j)] = 0.0;                        //zero BC on right surface
     }
 
-    for (int i = 0; i < Nx; ++i) {
+    for (int i = 0; i < Nx; ++i) {                      //generate the sinusoidal test case input b
         for (int j = 0; j < Ny; ++j) {
             b[IDX(i,j)] = -M_PI * M_PI * (k * k + l * l)
                                        * sin(M_PI * k * i * dx)
@@ -91,44 +102,44 @@ BOOST_AUTO_TEST_CASE(SolverCase2)
         }
     }
     
-    test.Solve(b,x);
+    test.Solve(b,x);                                    //Solve the sinusoidal test case
     
-    //compute actual x with analytical solution
-    double* x_actual = new double[n];
-    for(int i = 0; i < Nx; ++i){
+    for(int i = 0; i < Nx; ++i){                        //Generate the analytical solution x
         for(int j = 0; j < Ny; ++j) {
             x_actual[IDX(i,j)] = - sin(M_PI * k * i * dx) * sin(M_PI * l * j * dy);
         }
     }
 
-    //should be within the tolerance specified in solverCG
-    for(int i = 0; i < n; i++) {
-        BOOST_CHECK_SMALL(x[i]-x_actual[i],1e-3);
+    for(int i = 0; i < n; ++i) {
+        BOOST_CHECK_SMALL(x_actual[i]-x[i],tol);         //check error for each term between analytical and solver x is within tolerance
     }
 
-    delete[] x;
+    delete[] x;                                          //deallocate memory
     delete[] x_actual;
     delete[] b;
 }
 
 //test setting functions as well as print config, unable to test separate case of print config where nu > 0.25 as program terminates
-BOOST_AUTO_TEST_CASE(Setting)
+/**
+ * @brief Test case to confirm setting functions work for configuring the solver. Tests this via the PrintConfiguration function.
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SettingConfiguration)
 {
-    //test case
-    double dt   = 0.2;
-    double T    = 5.1;
+    //define a test case with different numbers for each
+    double dt   = 0.2;                          //time step
+    double T    = 5.1;                          //final time
     int    Nx   = 21;
     int    Ny   = 11;
-    //int    Npts = 231;
-    double Lx   = 1.0;
+    //int    Npts = 231;                        //number of grid points, for reference
+    double Lx   = 1.0;                          //domain length in x and y direction
     double Ly   = 2.0;
-    double Re   = 100;
-    //double U    = 1.0;
-    //double nu   = 0.01;
-    //double dx = 0.05;
+    double Re   = 100;                          //Reynolds number
+    //double U    = 1.0;                        //flow speed, for reference
+    //double nu   = 0.01;                       //kinematic viscosity, for reference
+    //double dx = 0.05;                         //step size in x and y, for reference
     //double dy = 0.2;
 
-    //note that nu * dt / dx / dy = 0.2 < 0.25
+    //note that nu * dt / dx / dy = 0.2 < 0.25, so solver should not exit
     
     //expected string outputs, taking care that spacing is same as that from output, and formatting of numbers is same as cout
     string configGridSize = "Grid size: 21 x 11";
@@ -140,13 +151,13 @@ BOOST_AUTO_TEST_CASE(Setting)
     string configReynolds = "Reynolds number: 100";
     string configOther = "Linear solver: preconditioned conjugate gradient";
 
-    LidDrivenCavity test;//default constructor
+    LidDrivenCavity test;                           //default constructor
     
     // Redirect cout to a stringstream for capturing the output
-    std::stringstream buffer;
-    std::streambuf* oldCout = std::cout.rdbuf(buffer.rdbuf());
+    std::stringstream terminalOutput;
+    std::streambuf* oldCout = std::cout.rdbuf(terminalOutput.rdbuf());
 
-    // Call the PrintConfiguration function
+    // Invoke setting functions and print the solver configuration to stringstream
     test.SetDomainSize(Lx,Ly);
     test.SetGridSize(Nx,Ny);
     test.SetTimeStep(dt);
@@ -157,10 +168,10 @@ BOOST_AUTO_TEST_CASE(Setting)
     // Restore the original cout
     std::cout.rdbuf(oldCout);
 
-    // Check the output in the stringstream
-    std::string output = buffer.str();
+    // Perform Boost Test assertions on the expected output, if fails, then no point continuing with other tests
+    //check if desired string is present in the terminal output
+    std::string output = terminalOutput.str();
 
-    // Perform Boost Test assertions on the expected output
     BOOST_REQUIRE(output.find(configGridSize) != std::string::npos);
     BOOST_REQUIRE(output.find(configSpacing) != std::string::npos);
     BOOST_REQUIRE(output.find(configLength) != std::string::npos);
@@ -171,10 +182,14 @@ BOOST_AUTO_TEST_CASE(Setting)
     BOOST_REQUIRE(output.find(configOther) != std::string::npos);
 }
 
-//test solver and file output together
-BOOST_AUTO_TEST_CASE(FileOutput) 
+/**
+ * @brief Test whether problem has been initialised correctly and whether WriteSolution() creates file and outputs correct data in correct format
+ * Upon problem initialisation, streamfunction and voriticity should be zero everywhere. Vertical and horizontal velocities should be zero 
+ * everywhere, except at top of lid where horizontal velocity is 1.
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_InitialiseFileOutput) 
 {
-    //take previous working test case
+    //take previous working test case, same variable definitions as before
     double dt   = 0.2;
     double T    = 5.1;
     int    Nx   = 21;
@@ -185,51 +200,50 @@ BOOST_AUTO_TEST_CASE(FileOutput)
     double dx = 0.05;
     double dy = 0.2;
     
-    //set up lid driven cavity class
-    LidDrivenCavity test;//default constructor
+    //set up lid driven cavity class and configure the problem
+    LidDrivenCavity test;
     test.SetDomainSize(Lx,Ly);
     test.SetGridSize(Nx,Ny);
     test.SetTimeStep(dt);
     test.SetFinalTime(T);
     test.SetReynoldsNumber(Re);
     
-    //initialise and write the output
-    test.Initialise();
+    test.Initialise();                              //initialise the problem
     
-    //output file containing initial condition, in file name testOutput
-    std::string fileName= "testOutput";
+    std::string fileName = "testOutput";            //output initial conditions to file named testOutput
     test.WriteSolution(fileName);
     
-     // Create an output file stream
-    std::ifstream outputFile(fileName);
-    BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened
+    std::ifstream outputFile(fileName);             //create stream for file
+    BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened, if doesn't exist, terminate
     
     //read data from file and check initial conditions -> verifies Initialise() and WriteSolution();
     //expect format of (x,y), (vorticity, streamfunction), (vx,vy)
-    //initial condition, so vorticity and streamfunction should be zeros everywhere, and only top surface should have ux = 1
-    std::string line;
-    std::string xData,yData,vData,sData,vxData,vyData;
-    double x,y,v,s,vx,vy;
+    //initial condition, so vorticity and streamfunction should be zeros everywhere, and only top surface should have vx = 1
     
-    int i = 0;
+    std::string line;                                               //variable to capture line of data from file
+    std::string xData,yData,vData,sData,vxData,vyData;              //temporary string variables
+    double x,y,v,s,vx,vy;                                           //temporary double variables
+    
+    int i = 0;                                                      //denote matrix index i,j
     int j = 0;
-    int dataPoints = 0;            //counter to track number of data points printed, should equal Nx*Ny
+    int dataPoints = 0;                     //counter to track number of data points printed, should equal Nx*Ny
     unsigned int dataCol = 0;               //conter for number of columns per row, should be 6
-    //while file is open
-    while(std::getline(outputFile,line)) {
+   
+    while(std::getline(outputFile,line)) {          //while file is open
         
         if(line.empty()) {
-            continue;               //if empty line, skip
+            continue;                               //if empty line in file, skip
         }
         
-        //first check that there are six
-        std::stringstream dataCheck(line);
+        //first check that there are six datapoints per row
+        std::stringstream dataCheck(line); 
         
         while (dataCheck >> xData) {
-                dataCol++;
+                dataCol++;                              //calculate how many data points per line
         }
+        
         BOOST_REQUIRE(dataCol == 6);                    //check data printed correctly, 6 data points per row
-        dataCol = 0;   //reset counter
+        dataCol = 0;                                    //reset data counter
         
         //now read data into correct place
         std::stringstream data(line);
@@ -242,17 +256,14 @@ BOOST_AUTO_TEST_CASE(FileOutput)
         vx = std::stod(vxData);
         vy = std::stod(vyData);
         
-        //cehck x and y data printed in correct format, column by column
-        BOOST_CHECK_CLOSE(x,i*dx,1e-6);
+        BOOST_CHECK_CLOSE(x,i*dx,1e-6);        //cehck x and y data printed in correct format, column by column
         BOOST_CHECK_CLOSE(y,j*dy,1e-6);
         
-        //vorticity and streamfunction should be zero everywhere
-        BOOST_CHECK_CLOSE(v,0.0,1e-6);
+        BOOST_CHECK_CLOSE(v,0.0,1e-6);         //vorticity and streamfunction should be zero everywhere
         BOOST_CHECK_CLOSE(s,0.0,1e-6);
-        
-        //check velocity x and y are zeros; if top surface, then vx = 1
-        if( std::abs(y - Ly) < 1e-6) {          //check if top surface, doubles, so check with tolerance
-            BOOST_CHECK_CLOSE(vx,1.0,1e-6);
+                                                //check velocity x and y are zeros; if top surface, then vx = 1
+        if( std::abs(y - Ly) < 1e-6) {          //check if top surface via tolerance as it is double format, tolerance must be << dy
+            BOOST_CHECK_CLOSE(vx,1.0,1e-6);     
             BOOST_CHECK_CLOSE(vy,0.0,1e-6);
         }
         else {
@@ -260,7 +271,7 @@ BOOST_AUTO_TEST_CASE(FileOutput)
             BOOST_CHECK_CLOSE(vy,0.0,1e-6);
         }
         
-        dataPoints++;//increment data points
+        dataPoints++;                           //log one more data point
         
         //also increment i and j counters; note that data is written out column by column, so i constant, j increments
         j++;
@@ -269,11 +280,11 @@ BOOST_AUTO_TEST_CASE(FileOutput)
             i++;
         }
     }
-    outputFile.close();
+    outputFile.close();                          //close the file
     
     BOOST_CHECK(dataPoints == Nx*Ny);            //check right number of grid point data is outputted
     
-    //delete file from directory to clean up#
+    //delete file from directory to clean up
     if(std::remove(fileName.c_str()) == 0) {
         std::cout << fileName << " successfully deleted" << std::endl;
     }
@@ -282,23 +293,26 @@ BOOST_AUTO_TEST_CASE(FileOutput)
     }
 }
 
-//test integrator, where integrator succeeds
-BOOST_AUTO_TEST_CASE(IntegrateTest) 
+/**
+ * @brief Tests whether the time domain solver Integrator() works correctly by computing 5 time steps for a specified problem.
+ * Solution is compared to the output generated by the serial solver, whose data is stored in a text file named "DataIntegratorTestCase".
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator) 
 {
-    //take previous working test case
+    //take previous working test case, same representations as before
     double dt   = 0.01;
-    double T    = 1;
+    double T    = 0.05;
     int    Nx   = 101;
     int    Ny   = 101;
     double Lx   = 1.0;
     double Ly   = 1.0;
     double Re   = 1000;
-    //double dx = 0.01;
+    //double dx = 0.01;                     //for reference, step sizes
     //double dy = 0.01;
-    //nu * dt/dx/dy = 0.1 < 0.25
+    //nu * dt/dx/dy = 0.1 < 0.25            //for reference, check the step size limit is smaller than 0.25
     
-    //set up lid driven cavity class
-    LidDrivenCavity test;//default constructor
+    //set up lid driven cavity class and configure the problem
+    LidDrivenCavity test;
     test.SetDomainSize(Lx,Ly);
     test.SetGridSize(Nx,Ny);
     test.SetTimeStep(dt);
@@ -309,46 +323,46 @@ BOOST_AUTO_TEST_CASE(IntegrateTest)
     test.Initialise();
     test.Integrate();
     
-    //output file containing initial condition, in file name testOutput
+    //output file containing initial condition, in file name IntegratorTest; reference data in DataIntegratorTestCase
     std::string fileName = "IntegratorTest";
     std::string refData = "DataIntegratorTestCase";
     test.WriteSolution(fileName);
     
-     // Create an output file stream
-    std::ifstream outputFile(fileName);    
+    std::ifstream outputFile(fileName);             // Create streams for outputted data and reference data
     std::ifstream refFile(refData);
     
-    BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened
-    BOOST_REQUIRE(refFile.is_open());            //check if file has been created by seeing if it can be opened
+    BOOST_REQUIRE(outputFile.is_open());            //check if output file has been created by seeing if it can be opened
+    BOOST_REQUIRE(refFile.is_open());               //check if reference data file exists by seeing if it can be opened
 
-    //read data from file and check initial conditions -> verifies Initialise() and WriteSolution();
+    //read data from file and compare with reference data from serial solver
     //expect format of (x,y), (vorticity, streamfunction), (vx,vy)
-    //initial condition, so vorticity and streamfunction should be zeros everywhere, and only top surface should have ux = 1
-    std::string line,refLine;
-    std::string xData,yData,vData,sData,vxData,vyData;
-    double x,y,v,s,vx,vy;
+    //initial condition, so vorticity and streamfunction should be zeros everywhere, and only top surface should have vx = 1
+    
+    std::string line,refLine;                                   //variable to capture line of data from file
+    std::string xData,yData,vData,sData,vxData,vyData;          //temporary string variables
+    double x,y,v,s,vx,vy;                                       //temporary double variables
     double xRef,yRef,vRef,sRef,vxRef,vyRef;
     
-    int dataPoints = 0;            //counter to track number of data points printed, should equal Nx*Ny
-    unsigned int dataCol = 0;               //conter for number of columns per row, should be 6
+    int dataPoints = 0;                                         //counter to track number of data points printed, should equal Nx*Ny
+    unsigned int dataCol = 0;                                   //conter for number of columns per row, should be 6
     //while file is open
     while(std::getline(outputFile,line)) {
         
-        std::getline(refFile,refLine);   //get data from ref file
+        std::getline(refFile,refLine);                          //get data from ref file
         if(line.empty()) {
-            continue;               //if empty line, skip
+            continue;                                           //if empty line in file, skip
         }
         
-        //first check that there are six
+        //first check that there are six pieces of data per row
         std::stringstream dataCheck(line);
         
         while (dataCheck >> xData) {
                 dataCol++;
         }
-        BOOST_REQUIRE(dataCol == 6);                    //check data printed correctly, 6 data points per row
-        dataCol = 0;   //reset counter
+        BOOST_REQUIRE(dataCol == 6);                            //check data printed correctly, 6 data points per row
+        dataCol = 0;                                            //reset data counter
         
-        //now read data into correct place
+        //now read outputted data and reference data from serial solver into correct place
         std::stringstream data(line);
         std::stringstream dataRef(refLine);
         
@@ -380,14 +394,14 @@ BOOST_AUTO_TEST_CASE(IntegrateTest)
         BOOST_CHECK_CLOSE(vx,vxRef,1e-6);
         BOOST_CHECK_CLOSE(vy,vyRef,1e-6);
         
-        dataPoints++;//increment data points
+        dataPoints++;                           //log extra data pionts
     }
-    outputFile.close();
+    outputFile.close();                         //close files
     refFile.close();
     
     BOOST_CHECK(dataPoints == Nx*Ny);            //check right number of grid point data is outputted
     
-    //delete file from directory to clean up
+    //delete output file from directory to clean up
     if(std::remove(fileName.c_str()) == 0) {
         std::cout << fileName << " successfully deleted" << std::endl;
     }
