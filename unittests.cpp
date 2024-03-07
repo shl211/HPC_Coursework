@@ -15,9 +15,8 @@
 
 #define IDX(I,J) ((J)*Nx + (I)) //define a new operation
 
-//test solver, implicity tests constructor and all other private functions
-//for case where b is practically 0
-BOOST_AUTO_TEST_CASE(SolverCase1)
+//test the case where the input b is very close to zero, should output exaclty 0.0
+BOOST_AUTO_TEST_CASE(SolverCGNearZeroInput)
 {
     const int Nx = 10;
     const int Ny = 10;
@@ -104,8 +103,6 @@ BOOST_AUTO_TEST_CASE(SolverCase2)
 
     //should be within the tolerance specified in solverCG
     for(int i = 0; i < n; i++) {
-        //BOOST_REQUIRE(abs(x[i] - x_actual[i]) < 1e-3);
-        //std::cout << x[i] << std::endl;
         BOOST_CHECK_SMALL(x[i]-x_actual[i],1e-3);
     }
 
