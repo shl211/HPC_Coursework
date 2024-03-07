@@ -46,7 +46,7 @@ void SolverCG::Solve(double* b, double* x) {
     eps = cblas_dnrm2(n, b, 1);                     //if 2-norm of b is lower than tolerance squared, then b practically zero
     if (eps < tol*tol) {                        
         std::fill(x, x+n, 0.0);                     //hence solution x is practically 0, output the 2-norm and exit function
-        cout << "Norm is " << eps << endl;
+        cout << "Norm is " << eps << endl;          //don't waste time with algorithm
         return;
     }
     
