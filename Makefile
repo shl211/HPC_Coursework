@@ -1,4 +1,4 @@
-CXX = g++
+CXX = mpicxx
 CXXFLAGS = -std=c++11 -Wall -o2 -ftree-vectorize
 TARGET = solver
 OBJS = LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
