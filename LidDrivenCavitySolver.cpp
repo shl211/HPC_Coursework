@@ -39,6 +39,39 @@ int main(int argc, char* argv[])
         return 1;
     }
     
+    //set up Cartesian topology to represent the 'grid' nature of the problem
+    MPI_Comm comm_Cart_Grid;
+    const int dims = 2;                                 //2 dimensions in grid
+    int gridSize[dims] = {(int)sqrtSize,(int)sqrtSize};     //p processes per dimension
+    int periods[dims] = {0,0};                          //grid is not periodic
+    int reorder = 1;                                    //reordering of grid
+    MPI_Cart_create(MPI_COMM_WORLD,dims,gridSize,periods,reorder, &comm_Cart_Grid);        //create Cartesian topology
+    
+    //extract coordinates
+    MPI_Comm comm_row_grid, comm_col_grid;                          //communicators for rows and columns of grid
+    int gridRank;
+    int coords[dims];
+    int keep[dims];
+    
+    retval_rank = MPI_Comm_rank(comm_Cart_Grid, &gridRank);         //retrieve rank in grid, also check if grid created successfully
+    if(retval_rank == MPI_ERR_COMM) {
+        if (rank == 0)
+            cout << "Cartesian grid was not created" << endl;
+            
+        MPI_Finalize();
+        return 1;
+    }
+    
+    MPI_Cart_coords(comm_Cart_Grid, gridRank, dims, coords);
+    
+    keep[0] = 0;        //create row communnicator in subgrid
+    keep[1] = 1;
+    MPI_Cart_sub(comm_Cart_Grid, keep, &comm_row_grid);
+    
+    keep[0] = 1;        //create column communnicator in subgrid
+    keep[1] = 0;
+    MPI_Cart_sub(comm_Cart_Grid, keep, &comm_col_grid);
+    
     //------------------------------------User program options to define problem ------------------------------------//
     po::options_description opts(
         "Solver for the 2D lid-driven cavity incompressible flow problem");
