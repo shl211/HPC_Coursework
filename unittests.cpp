@@ -96,10 +96,9 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
 
     SolverCG test(Nx,Ny,dx,dy);                         //create test solver
     
-    std::srand(time(0));
     for(int i = 0; i < n; i++) {
         b[i] = 0.0;                                     //initialise b and x with zeros
-        x[i] = 0.0;
+        x[i] = 0.0;                                     //zero BCs naturally satisfied, zeros also improve convergence speed
     }
     
     for (int i = 0; i < Nx; ++i) {                      //generate the sinusoidal test case input b
@@ -120,18 +119,242 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
 
     cblas_daxpy(n, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
     BOOST_CHECK(cblas_dnrm2(n,x_actual,1) < tol);    //check the error 2-norm is smaller than tol*tol, or 1e-3
-    std::cout << cblas_dnrm2(n,x_actual,1) << std::endl;
+
     delete[] x;                                          //deallocate memory
     delete[] x_actual;
     delete[] b;
 }
 
-//BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize)
+/**
+ * @brief Test whether LidDrivenCavity::SetDomainSize assigns values correctly and correctly configures problem
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
+    
+    LidDrivenCavity test;         //lid driven cavity with default values
+
+    //values to assign
+    double Lx = 2.2;
+    double Ly = 3.3;                        //domain lengths
+    
+    //Get default values in class
+    double dt   = test.GetDt();                     //Time step for solver, default 0.01
+    double T    = test.GetT();                      //Final time for solver, default 1
+    int    Nx   = test.GetNx();                        //Number of grid points in x direction, default 9
+    int    Ny   = test.GetNy();                        //Number of grid points in y direction, default 9
+    int    Npts = test.GetNpts();                       //Total number of grid points, default 81
+    double Re   = test.GetRe();                       //Reynolds number, default 10
+    double U    = test.GetU();                      //Horizontal velocity at top of lid, default 1
+    double nu   = test.GetNu();                      //Kinematic viscosity, default 0.1
+    
+    //compute expected values
+    double expectedDx = Lx/(Nx-1);                  //Grid spacing in x direction
+    double expectedDy = Ly/(Ny-1);                  //Grid spacing in y direction
+    
+    double tol = 1e-6;
+
+    test.SetDomainSize(Lx,Ly);          //call function to be tested
+    
+    //check whether changed values, Lx,Ly,dx,dy are actually changed correctly
+    BOOST_REQUIRE( abs(Lx - test.GetLx()) < tol);
+    BOOST_REQUIRE( abs(Ly - test.GetLy()) < tol);
+    BOOST_REQUIRE( abs(expectedDx - test.GetDx()) < tol);
+    BOOST_REQUIRE( abs(expectedDy - test.GetDy()) < tol);
+    
+    //check whether other values remain the same, can use equality even for doubles as numbers should be exacltyy the same
+    BOOST_REQUIRE( test.GetDt() == dt);
+    BOOST_REQUIRE( test.GetT() == T);
+    BOOST_REQUIRE( test.GetNx() == Nx);
+    BOOST_REQUIRE( test.GetNy() == Ny);
+    BOOST_REQUIRE( test.GetNpts() == Npts);
+    BOOST_REQUIRE( test.GetRe() == Re);
+    BOOST_REQUIRE (test.GetNu() == nu);
+    BOOST_REQUIRE( test.GetU() == U);
+}
 
 /**
- * @brief Test case to confirm setting functions work for configuring the solver. Tests this via the LidDrivenCavity::PrintConfiguration function.
+ * @brief Test whether LidDrivenCavity::SetGridSize assigns values correctly and correctly configures problem
  */
-BOOST_AUTO_TEST_CASE(LidDrivenCavity_SettingConfiguration)
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
+    
+    LidDrivenCavity test;         //lid driven cavity with default values
+
+    //values to assign
+    int Nx = 102;
+    int Ny = 307;                        //grid points in x and y
+    
+    //Get default values in class
+    double dt   = test.GetDt();                     //Time step for solver, default 0.01
+    double T    = test.GetT();                      //Final time for solver, default 1
+    double    Lx   = test.GetLx();                      //Domain lengths
+    double    Ly   = test.GetLy();                        
+    double Re   = test.GetRe();                      //Reynolds number, default 10
+    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
+    double nu   = test.GetNu();                      //Kinematic viscosity, default 0.1
+    
+    //compute expected values
+    double expectedDx = Lx/(Nx-1);                  //Grid spacing in x direction
+    double expectedDy = Ly/(Ny-1);                  //Grid spacing in y direction
+    int expectedNpts = Nx*Ny;
+    
+    double tol = 1e-6;
+
+    test.SetGridSize(Nx,Ny);          //call function to be tested
+    
+    //check whether changed values, Nx,Ny,Npts,dx,dy are actually changed correctly
+    BOOST_REQUIRE( test.GetNx() == Nx);
+    BOOST_REQUIRE( test.GetNy() == Ny);
+    BOOST_REQUIRE( test.GetNpts() == expectedNpts);
+    BOOST_REQUIRE( abs(expectedDx - test.GetDx()) < tol);
+    BOOST_REQUIRE( abs(expectedDy - test.GetDy()) < tol);
+    
+    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
+    BOOST_REQUIRE( test.GetDt() == dt);
+    BOOST_REQUIRE( test.GetT() == T);
+    BOOST_REQUIRE( test.GetLx() == Lx);
+    BOOST_REQUIRE( test.GetLy() == Ly);
+    BOOST_REQUIRE( test.GetRe() == Re);
+    BOOST_REQUIRE( test.GetNu() == nu);
+    BOOST_REQUIRE( test.GetU() == U);
+}
+
+/**
+ * @brief Test whether LidDrivenCavity::SetTimeStep assigns values correctly and correctly configures problem
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
+    LidDrivenCavity test;         //lid driven cavity with default values
+
+    //values to assign
+    double dt = 0.024;
+    
+    //Get default values in class
+    int Nx = test.GetNx();                          //grid points
+    int Ny = test.GetNy();
+    int Npts = test.GetNpts();
+    double T = test.GetT();                      //Final time for solver, default 1
+    double Lx = test.GetLx();                      //Domain lengths
+    double Ly = test.GetLy();                        
+    double Re = test.GetRe();                      //Reynolds number, default 10
+    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
+    double nu = test.GetNu();                      //Kinematic viscosity, default 0.1
+    double dx = test.GetDx();
+    double dy = test.GetDy();
+    
+    //no other expected values
+    double tol = 1e-6;
+
+    test.SetTimeStep(dt);          //call function to be tested
+    
+    //check whether changed values, dt is actually changed correctly
+    BOOST_REQUIRE( abs(dt - test.GetDt()) < tol);
+    
+    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
+    BOOST_REQUIRE( test.GetNx() == Nx);
+    BOOST_REQUIRE( test.GetNy() == Ny);
+    BOOST_REQUIRE( test.GetNpts() == Npts);
+    BOOST_REQUIRE( test.GetDx() == dx);     //although dx and dy not yet assigned, but data should be untouched, so can use equality
+    BOOST_REQUIRE( test.GetDy() == dy);
+    BOOST_REQUIRE( test.GetT() == T);
+    BOOST_REQUIRE( test.GetLx() == Lx);
+    BOOST_REQUIRE( test.GetLy() == Ly);
+    BOOST_REQUIRE( test.GetRe() == Re);
+    BOOST_REQUIRE( test.GetNu() == nu);
+    BOOST_REQUIRE( test.GetU() == U);
+}
+
+/**
+ * @brief Test whether LidDrivenCavity::SetFinalTime assigns values correctly and correctly configures problem
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
+    LidDrivenCavity test;         //lid driven cavity with default values
+
+    //values to assign
+    double T = 23.43;
+    
+    //Get default values in class
+    int Nx = test.GetNx();                          //grid points
+    int Ny = test.GetNy();
+    int Npts = test.GetNpts();
+    double dt = test.GetDt();                      //time step
+    double Lx = test.GetLx();                      //Domain lengths
+    double Ly = test.GetLy();                        
+    double Re = test.GetRe();                      //Reynolds number, default 10
+    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
+    double nu = test.GetNu();                      //Kinematic viscosity, default 0.1
+    double dx = test.GetDx();
+    double dy = test.GetDy();
+    
+    //no other expected values
+    double tol = 1e-6;
+
+    test.SetFinalTime(T);          //call function to be tested
+    
+    //check whether changed values, T is actually changed correctly
+    BOOST_REQUIRE( abs(T - test.GetT()) < tol);
+    
+    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
+    BOOST_REQUIRE( test.GetNx() == Nx);
+    BOOST_REQUIRE( test.GetNy() == Ny);
+    BOOST_REQUIRE( test.GetNpts() == Npts);
+    BOOST_REQUIRE( test.GetDx() == dx);     //although dx and dy not yet assigned, but data should be untouched, so can use equality
+    BOOST_REQUIRE( test.GetDy() == dy);
+    BOOST_REQUIRE( test.GetDt() == dt);
+    BOOST_REQUIRE( test.GetLx() == Lx);
+    BOOST_REQUIRE( test.GetLy() == Ly);
+    BOOST_REQUIRE( test.GetRe() == Re);
+    BOOST_REQUIRE( test.GetNu() == nu);
+    BOOST_REQUIRE( test.GetU() == U);
+}
+
+/**
+ * @brief Test whether LidDrivenCavity::SetReynoldsNumber assigns values correctly and correctly configures problem
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
+    LidDrivenCavity test;         //lid driven cavity with default values
+
+    //values to assign
+    double Re = 5000;
+    
+    //Get default values in class
+    int Nx = test.GetNx();                          //grid points
+    int Ny = test.GetNy();
+    int Npts = test.GetNpts();
+    double dt = test.GetDt();                      //time step
+    double T = test.GetT();                         //final time
+    double Lx = test.GetLx();                      //Domain lengths
+    double Ly = test.GetLy();                        
+    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
+    double dx = test.GetDx();
+    double dy = test.GetDy();
+    
+    //compute other expected values nu
+    double nu = U/Re;
+    
+    double tol = 1e-6;
+
+    test.SetReynoldsNumber(Re);          //call function to be tested
+    
+    //check whether changed values,  is actually changed correctly
+    BOOST_REQUIRE( abs(Re - test.GetRe()) < tol);
+    BOOST_REQUIRE( abs(nu - test.GetNu()) < tol);
+    
+    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
+    BOOST_REQUIRE( test.GetNx() == Nx);
+    BOOST_REQUIRE( test.GetNy() == Ny);
+    BOOST_REQUIRE( test.GetNpts() == Npts);
+    BOOST_REQUIRE( test.GetDx() == dx);     //although dx and dy not yet assigned, but data should be untouched, so can use equality
+    BOOST_REQUIRE( test.GetDy() == dy);
+    BOOST_REQUIRE( test.GetDt() == dt);
+    BOOST_REQUIRE( test.GetT() == T);
+    BOOST_REQUIRE( test.GetLx() == Lx);
+    BOOST_REQUIRE( test.GetLy() == Ly);
+    BOOST_REQUIRE( test.GetRe() == Re);
+    BOOST_REQUIRE( test.GetU() == U);    
+}
+
+/**
+ * @brief Test case to confirm whether LidDrivenCavity::PrintConfiguration function prints out the correct configuration
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 {
     //define a test case with different numbers for each
     double dt   = 0.2;                          //time step
@@ -191,11 +414,63 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SettingConfiguration)
 }
 
 /**
- * @brief Test whether problem has been initialised correctly and whether WriteSolution() creates file and outputs correct data in correct format
+ * @brief Test whether LidDrivenCavity::Initialise initialises the vorticity, streamfunctions and velocities correctly
+ */
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
+    //take previous working test case, same variable definitions as before
+    double dt   = 0.2;
+    double T    = 5.1;
+    int    Nx   = 21;
+    int    Ny   = 11;
+    double Lx   = 1.0;
+    double Ly   = 2.0;
+    double Re   = 100;
+    //double dx = 0.05;
+    //double dy = 0.2;
+    
+    //set up lid driven cavity class and configure the problem
+    LidDrivenCavity test;
+    test.SetDomainSize(Lx,Ly);
+    test.SetGridSize(Nx,Ny);
+    test.SetTimeStep(dt);
+    test.SetFinalTime(T);
+    test.SetReynoldsNumber(Re);
+    
+    test.Initialise();                              //initialise the problem
+    
+    double* v = new double[Nx*Ny];
+    double* s = new double[Nx*Ny];
+    double* u0 = new double[Nx*Ny];
+    double* u1 = new double[Nx*Ny];
+    double tol = 1e-6;
+    
+    test.GetData(v,s,u0,u1);
+    
+    //initial condition implies zero for all values that are not top surface
+    for(int j = 0; j < Ny-1; ++j) {
+        for(int i = 0; i < Nx; ++i) {
+            BOOST_CHECK_SMALL(v[IDX(i,j)],tol);
+            BOOST_CHECK_SMALL(s[IDX(i,j)],tol);
+            BOOST_CHECK_SMALL(u0[IDX(i,j)],tol);
+            BOOST_CHECK_SMALL(u1[IDX(i,j)],tol);
+        }
+    }
+    
+    //for top surface, all values have zero, except u1, which should be equal to 1
+    for(int i = 0; i < Nx; ++i) {
+        BOOST_CHECK_SMALL(v[IDX(i,Ny-1)],tol);
+        BOOST_CHECK_SMALL(s[IDX(i,Ny-1)],tol);
+        BOOST_CHECK_CLOSE(u0[IDX(i,Ny-1)],1.0,tol);
+        BOOST_CHECK_SMALL(u1[IDX(i,Ny-1)],tol);
+    }
+}
+
+/**
+ * @brief Test whether LidDrivenCavity::WriteSolution() creates file and outputs correct data in correct format. Uses initial condition data to check.
  * Upon problem initialisation, streamfunction and voriticity should be zero everywhere. Vertical and horizontal velocities should be zero 
  * everywhere, except at top of lid where horizontal velocity is 1.
  */
-BOOST_AUTO_TEST_CASE(LidDrivenCavity_InitialiseFileOutput) 
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution) 
 {
     //take previous working test case, same variable definitions as before
     double dt   = 0.2;
@@ -224,7 +499,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_InitialiseFileOutput)
     std::ifstream outputFile(fileName);             //create stream for file
     BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened, if doesn't exist, terminate
     
-    //read data from file and check initial conditions -> verifies Initialise() and WriteSolution();
+    //read data from file and check initial conditions -> verifies WriteSolution();
     //expect format of (x,y), (vorticity, streamfunction), (vx,vy)
     //initial condition, so vorticity and streamfunction should be zeros everywhere, and only top surface should have vx = 1
     

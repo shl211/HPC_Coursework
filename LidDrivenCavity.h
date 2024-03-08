@@ -25,36 +25,118 @@ public:
      * @brief Destructor to deallocate memory
      */
     ~LidDrivenCavity();
+    
+    /**
+     * @brief Get the time step dt, for testing purposes
+     * @return Time step dt
+     */
+    double GetDt(); 
+    
+    /**
+     * @brief Get the final time T, for testing purposes
+     * @return Final time T
+     */
+    double GetT();
+    
+    /**
+     * @brief Get the x direction step size dx, for testing purposes
+     * @return x direction step size dx
+     */
+    double GetDx();
+    
+     /**
+     * @brief Get the y direction step size dy, for testing purposes
+     * @return y direction step size dy
+     */
+    double GetDy();
+    
+    /**
+     * @brief Get the total number of grid points in x direction, for testing purposes
+     * @return Total number of grid points in x direction
+     */
+    int GetNx();
+    
+    /**
+     * @brief Get the total number of grid points in y direction, for testing purposes
+     * @return Total number of grid points in y direction
+     */
+    int GetNy();
+    
+    /**
+     * @brief Get total number of grid points, for testing purposes
+     * @return Total number of grid points
+     */
+    int GetNpts();
+    
+    /**
+     * @brief Get domain length in x direction, for testing purposes
+     * @return Domain length in x direction
+     */
+     double GetLx();
+    
+    /**
+     * @brief Get domain length in y direction, for testing purposes
+     * @return Domain length in y direction
+     */
+     double GetLy();
+    
+    /**
+     * @brief Get Reynolds number, for testing purposes
+     * @return Reynolds number
+     */
+    double GetRe();
+     
+     /**
+      * @brief Get horizontal flow velocity at top lid, for testing purposes
+      * @return Horizontal flow vevlocity at top lid
+      */
+    double GetU();
+      
+      /**
+       * @brief Get kinematic viscosity, for testing purposes
+       * @return Kinematic viscosity
+       */
+    double GetNu();
+
+    /**
+     * @brief Get vorticity, streamfunction, and velocity data. Results written into the provided pointers.
+     * @param[out] vOut    pointer to array containing vorticity
+     * @param[out] sOut    pointer to array containing streamfunction
+     * @param[out] u0Out   pointer to array containing velocity in x direction
+     * @param[out] u1Out   pointer to array containing velocity in y direction
+     */
+    void GetData(double* vOut, double* sOut, double* u0Out, double* u1Out);
+
 
     /**
      * @brief Specify the problem domain size \f$ (x,y)\in[0,xlen]\times[0,ylen] \f$ and recomputes grid spacing dx and dy
-     * @param xlen  Length of domain in the x direction
-     * @param ylen  Length of domain in the y direction
+     * @param[in] xlen  Length of domain in the x direction
+     * @param[in] ylen  Length of domain in the y direction
      */
     void SetDomainSize(double xlen, double ylen);
     
     /**
      * @brief Specify the grid size \f$ N_x \times N_y \f$ and recomputes grid spacing dx and dy
-     * @param nx    Number of grid points in the x direction
-     * @param ny    Number of grid points in the y direction
+     * @param[in] nx    Number of grid points in the x direction
+     * @param[in] ny    Number of grid points in the y direction
      */
     void SetGridSize(int nx, int ny);
     
     /**
      * @brief Specify the time step for the solver
-     * @param deltat    Time step
+     * @param[in] deltat    Time step
      */
     void SetTimeStep(double deltat);
     
     /**
      * @brief Specify the final time for solver
-     * @param finalt    Final time
+     * @param[in] finalt    Final time
      */
     void SetFinalTime(double finalt);
     
     /**
      * @brief Specify the Reynolds number of the flow at the top of the lid
-     * @param re    Reynolds number
+     * @param[in] re    Reynolds number
      */
     void SetReynoldsNumber(double Re);
 
@@ -73,7 +155,7 @@ public:
     /**
      * @brief Print grid position (x,y), voriticity, streamfunction and velocities (vx,vy) to a text file with the specified name. 
      * If the specified file does not exist, then it will create a text file with the specified name and output data there.
-     * @param file      name of the target text file
+     * @param[in] file      name of the target text file
      */ 
     void WriteSolution(std::string file);
     

@@ -26,6 +26,74 @@ LidDrivenCavity::~LidDrivenCavity()
     CleanUp();                                                      //deallocate memory
 }
 
+    //getting functions for testing purposes
+double LidDrivenCavity::GetDt(){
+    return dt;
+} 
+
+double LidDrivenCavity::GetT() {
+    return T;
+}
+
+double LidDrivenCavity::GetDx() {
+    return dx;
+}   
+
+double LidDrivenCavity::GetDy() {
+    return dy;
+}   
+    
+int LidDrivenCavity::GetNx() {
+    return Nx;
+}
+
+int LidDrivenCavity::GetNy() {
+    return Ny;
+}
+
+int LidDrivenCavity::GetNpts() {
+    return Npts;
+}
+
+double LidDrivenCavity::GetLx() {
+    return Lx;
+}    
+
+double LidDrivenCavity::GetLy() {
+    return Ly;
+}    
+
+double LidDrivenCavity::GetRe() {
+    return Re;
+}
+
+double LidDrivenCavity::GetU() {
+    return U;
+}
+
+double LidDrivenCavity::GetNu() {
+    return nu;
+}
+
+void LidDrivenCavity::GetData(double* vOut, double* sOut, double* u0Out, double* u1Out) {
+    for(int i = 0; i < Npts; ++i) {
+        vOut[i] = v[i];              //copy data for vorticity and streamfunction
+        sOut[i] = s[i];
+    }
+    
+    //--------------------For checking velocity, code snippet exactly same as the one used in WriteSolution ---------------//
+    for (int i = 1; i < Nx - 1; ++i) {
+        for (int j = 1; j < Ny - 1; ++j) {
+            u0Out[IDX(i,j)] =  (sOut[IDX(i,j+1)] - sOut[IDX(i,j)]) / dy;     //compute velocity in x direction at every grid point from streamfunction
+            u1Out[IDX(i,j)] = -(sOut[IDX(i+1,j)] - sOut[IDX(i,j)]) / dx;     //compute velocity in y direction at every grid point from streamfunction
+        }
+    }
+    for (int i = 0; i < Nx; ++i) {
+        u0Out[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
+    }
+    //----------------------------------------------------------------------------------------------------------------------//
+}
+
 void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
 {
     this->Lx = xlen;
