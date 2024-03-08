@@ -6,6 +6,7 @@
 using namespace std;
 
 #include <cblas.h>
+#include <mpi.h>
 
 /**
  * @brief Macro to map matrix entry i,j onto it's corresponding location in memory, assuming column-wise matrix storage
@@ -17,8 +18,13 @@ using namespace std;
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
 
-LidDrivenCavity::LidDrivenCavity()
+LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int rowRank, int colRank)
 {
+    comm_row_grid = rowGrid;
+    comm_col_grid = colGrid;
+    MPIcoords[0] = rowRank;
+    MPIcoords[1] = colRank;
+    MPI_Comm_rank(comm_row_grid,&size);     //get size of communicator
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -136,12 +142,15 @@ void LidDrivenCavity::Initialise()
 
 void LidDrivenCavity::Integrate()
 {
+    
     int NSteps = ceil(T/dt);                                        //number of time steps required, rounded up
     for (int t = 0; t < NSteps; ++t)
     {
-        std::cout << "Step: " << setw(8) << t
-                  << "  Time: " << setw(8) << t*dt
-                  << std::endl;                                     //after each step, output time and step information
+        if((MPIcoords[0] == 0) & (MPIcoords[1] == 0)) {                           //only print on root rank
+            std::cout << "Step: " << setw(8) << t
+                      << "  Time: " << setw(8) << t*dt
+                      << std::endl;                                     //after each step, output time and step information
+        }
         Advance();                                                  //solve the spatial problem and the time domain problem for one time step
     }
 }
@@ -181,18 +190,41 @@ void LidDrivenCavity::WriteSolution(std::string file)
 
 void LidDrivenCavity::PrintConfiguration()
 {
-    cout << "Grid size: " << Nx << " x " << Ny << endl;                         //print the current problem configuration
-    cout << "Spacing:   " << dx << " x " << dy << endl;
-    cout << "Length:    " << Lx << " x " << Ly << endl;
-    cout << "Grid pts:  " << Npts << endl;
-    cout << "Timestep:  " << dt << endl;
-    cout << "Steps:     " << ceil(T/dt) << endl;
-    cout << "Reynolds number: " << Re << endl;
-    cout << "Linear solver: preconditioned conjugate gradient" << endl;
-    cout << endl;
+    int globalNx, globalNy;
+    double globalLx, globalLy;                  //global, non-discretised values i.e. actual configuration
+    int rootCoord[2] = {0,0};                   //root rank
+    int rootRank;
+    
+    //reduce global values onto root value only, grid in 
+    if(MPIcoords[0] == 0) {                                         //only use one row communicator calculate number of columns for Nx
+            MPI_Cart_rank(comm_row_grid,rootCoord, &rootRank);
+            MPI_Reduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,rootRank,comm_row_grid);
+            MPI_Reduce(&Lx,&globalLx,1,MPI_DOUBLE,MPI_SUM,rootRank,comm_row_grid);
+    }
+    
+    if(MPIcoords[1] == 0) {                                         //only use one column communicator calculate number of rows for Ny
+            MPI_Cart_rank(comm_col_grid,rootCoord, &rootRank);
+            MPI_Reduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,rootRank,comm_col_grid);
+            MPI_Reduce(&Ly,&globalLy,1,MPI_DOUBLE,MPI_SUM,rootRank,comm_col_grid);
+    }
+    
+    if((MPIcoords[0] == 0) & (MPIcoords[1]== 0)) {
+        cout << "Grid size: " << globalNx << " x " << globalNy << endl;                         //print the current problem configuration
+        cout << "Spacing:   " << dx << " x " << dy << endl;
+        cout << "Length:    " << globalLx << " x " << globalLy << endl;
+        cout << "Grid pts:  " << globalNx*globalNy << endl;
+        cout << "Timestep:  " << dt << endl;
+        cout << "Steps:     " << ceil(T/dt) << endl;
+        cout << "Reynolds number: " << Re << endl;
+        cout << "Linear solver: preconditioned conjugate gradient" << endl;
+        cout << endl;
+    }
+    
     if (nu * dt / dx / dy > 0.25) {                                             //if timestep restriction not satisfied, terminate the program
-        cout << "ERROR: Time-step restriction not satisfied!" << endl;
-        cout << "Maximum time-step is " << 0.25 * dx * dy / nu << endl;
+        if((MPIcoords[0] == 0) & (MPIcoords[1] == 0)) {
+            cout << "ERROR: Time-step restriction not satisfied!" << endl;
+            cout << "Maximum time-step is " << 0.25 * dx * dy / nu << endl;
+        }
         exit(-1);
     }
 }
@@ -209,8 +241,16 @@ void LidDrivenCavity::CleanUp()
 
 void LidDrivenCavity::UpdateDxDy()
 {
-    dx = Lx / (Nx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
-    dy = Ly / (Ny-1);
+    if(size == 1) {
+        dx = Lx / (Nx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
+        dy = Ly / (Ny-1);
+    }
+    else {              //if not just 1 process, then grid is inclusive points, not exclusive, so no -1
+        dx = Lx/Nx;
+        dy = Ly/Ny;
+    }
+    
+
     Npts = Nx * Ny;         //total number of grid points
 }
 

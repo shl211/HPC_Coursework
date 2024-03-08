@@ -14,11 +14,11 @@ namespace po = boost::program_options;
 int main(int argc, char* argv[])
 {
     //-----------------------------------------Initialise MPI communicator-----------------------------------------//
-    int rank, size, retval_rank, retval_size;    
+    int worldRank, size, retval_rank, retval_size;    
     MPI_Init(&argc, &argv);
     
     //return rank and size
-    retval_rank = MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
+    retval_rank = MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
     retval_size = MPI_Comm_size(MPI_COMM_WORLD, &size);
     
     //check if communicator set up correctly
@@ -28,11 +28,10 @@ int main(int argc, char* argv[])
     }
     
     //check if input rank is square number size = p^2
-    double sqrtSize = sqrt(size);
-    sqrtSize = round(sqrtSize);     //round sqrt to nearest whole number
+    int p = round(sqrt(size));   //round sqrt to nearest whole number
     
-    if(((int) sqrtSize*sqrtSize != size) | (size < 1)) {                   //if not a square number, print error and terminate program
-        if(rank == 0)                                       //print only on root rank
+    if((p*p != size) | (size < 1)) {                   //if not a square number, print error and terminate program
+        if(worldRank == 0)                                       //print only on root rank
             cout << "Invalide process size. Process size must be square number of size p^2 and greater than 0" << endl;
             
         MPI_Finalize();
@@ -42,7 +41,7 @@ int main(int argc, char* argv[])
     //set up Cartesian topology to represent the 'grid' nature of the problem
     MPI_Comm comm_Cart_Grid;
     const int dims = 2;                                 //2 dimensions in grid
-    int gridSize[dims] = {(int)sqrtSize,(int)sqrtSize};     //p processes per dimension
+    int gridSize[dims] = {p,p};                         //p processes per dimension
     int periods[dims] = {0,0};                          //grid is not periodic
     int reorder = 1;                                    //reordering of grid
     MPI_Cart_create(MPI_COMM_WORLD,dims,gridSize,periods,reorder, &comm_Cart_Grid);        //create Cartesian topology
@@ -55,22 +54,24 @@ int main(int argc, char* argv[])
     
     retval_rank = MPI_Comm_rank(comm_Cart_Grid, &gridRank);         //retrieve rank in grid, also check if grid created successfully
     if(retval_rank == MPI_ERR_COMM) {
-        if (rank == 0)
+        if (worldRank == 0)
             cout << "Cartesian grid was not created" << endl;
             
         MPI_Finalize();
         return 1;
     }
     
-    MPI_Cart_coords(comm_Cart_Grid, gridRank, dims, coords);
+    MPI_Cart_coords(comm_Cart_Grid, gridRank, dims, coords);        //generate coordinates
     
-    keep[0] = 0;        //create row communnicator in subgrid
+    keep[0] = 0;        //create row communnicator in subgrid, process can communicate with other processes on row
     keep[1] = 1;
     MPI_Cart_sub(comm_Cart_Grid, keep, &comm_row_grid);
     
-    keep[0] = 1;        //create column communnicator in subgrid
+    keep[0] = 1;        //create column communnicator in subgrid, process can communicate with other processes on column
     keep[1] = 0;
     MPI_Cart_sub(comm_Cart_Grid, keep, &comm_col_grid);
+    
+    //cout << "Rank " << gridRank+1 << " has coords (" << coords[0] << "," << coords[1] << ")" << endl;
     
     //------------------------------------User program options to define problem ------------------------------------//
     po::options_description opts(
@@ -98,18 +99,59 @@ int main(int argc, char* argv[])
     po::notify(vm);
 
     if (vm.count("help")) {       
-        if(rank == 0)                                                       //only print on root rank
+        if(worldRank == 0)                                                           //only print on global root rank
             cout << opts << endl;
         
         MPI_Finalize();
         return 0;
     }
+    
+    //------------------------------After user inputs, divide domain appropraitely across the grid --------------------------//
+    //divide the domain size into as even of chunks/grids as possible, following the Cartesian grid
+    //so each process has different size Lx and Ly, and differente size Nx and Ny, but  same everything else
+    int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
+    int rowStart,rowEnd,colStart,colEnd;                //denotes index of where in problem domain the process accesses directly
+    double xDomainLength,yDomainLength;                    //local lengths of Nx and Ny
+    int rem;
+    
+    xDomainSize = vm["Nx"].as<int>() / p;           //minimum size of each process in x and y domain
+    yDomainSize = vm["Ny"].as<int>() / p;
+    
+    //first assign for x dimension
+    rem = vm["Nx"].as<int>() % p;                   //remainder, denotes how many processes need an extra row in domain
+    
+    if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
+        yDomainSize++;
+        rowStart = yDomainSize * coords[0];             //index denoting starting row in local domain
+        rowEnd = rowStart + yDomainSize;                //index denoting final row in local domain
+    }
+    else {//otherwise use minimum, and find other values
+        rowStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
+        rowEnd = rowStart + yDomainSize;
+    }
+    
+    //same for y dimension
+    rem = vm["Ny"].as<int>() % p;
+        
+    if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
+        xDomainSize++;
+        colStart = xDomainSize * coords[1];             //index denoting starting column in local domain
+        colEnd = colStart + xDomainSize;                //index denoting final column in local domain
+    }
+    else {//otherwise use minimum, and find other values
+        colStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
+        colEnd = colStart + xDomainSize;
+    }
+    
+    xDomainLength = vm["Lx"].as<double>() * xDomainSize/vm["Nx"].as<int>();            //calculate new local domain lengths, this ensures dx and dy same as serial case
+    yDomainLength = vm["Ly"].as<double>() * yDomainSize/vm["Ny"].as<int>();
 
     //-----------------------------------------------------Parallel Solver---------------------------------------------------//
 
-    LidDrivenCavity* solver = new LidDrivenCavity();                            //define solver and specify problem with user inputs
-    solver->SetDomainSize(vm["Lx"].as<double>(), vm["Ly"].as<double>());
-    solver->SetGridSize(vm["Nx"].as<int>(),vm["Ny"].as<int>());
+    LidDrivenCavity* solver = new LidDrivenCavity(comm_row_grid,comm_col_grid,coords[0],coords[1]);
+                                                                                //define solver and specify problem with user inputs
+    solver->SetDomainSize(xDomainLength,yDomainLength);                         //define each local solver domain
+    solver->SetGridSize(xDomainSize,yDomainSize);
     solver->SetTimeStep(vm["dt"].as<double>());
     solver->SetFinalTime(vm["T"].as<double>());
     solver->SetReynoldsNumber(vm["Re"].as<double>());

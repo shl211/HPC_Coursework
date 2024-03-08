@@ -17,9 +17,13 @@ class LidDrivenCavity
 {
 public:
     /**
-     * @brief Default constructor
+     * @brief Constructor containing information on MPI process within a Cartesian topology
+     * @param[in] rowGrid   MPI communicator for the process row in Cartesian topology grid
+     * @param[in] colGrid   MPI communicator for the process column in Cartesian topology grid
+     * @param[in] rowRank   Denotes the row the MPI process is within a Cartesian topology grid i.e.coordinates[0]
+     * @param[in] colRank   Denotes the column the MPI process is within a Cartesian topology grid i.e.coordinates[1]
      */
-    LidDrivenCavity();
+    LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int rowRank, int colRank);
     
     /**
      * @brief Destructor to deallocate memory
@@ -182,6 +186,11 @@ private:
     double U    = 1.0;                      ///<Horizontal velocity at top of lid, default 1
     double nu   = 0.1;                      ///<Kinematic viscosity, default 0.1
 
+    MPI_Comm comm_row_grid;                 ///<MPI communicator for the process row in Cartesian topology grid
+    MPI_Comm comm_col_grid;                 ///<MPI communicator for the process column in Cartesian topology grid
+    int MPIcoords[2];                        ///<Coordinate of MPI process in a Cartesian topology grid
+    int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
+    
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 
     /**
