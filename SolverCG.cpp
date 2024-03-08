@@ -35,6 +35,23 @@ SolverCG::~SolverCG()
     delete[] t;
 }
 
+//getter functions for testing purposes
+double SolverCG::GetDx() {
+    return dx;
+}
+
+double SolverCG::GetDy() {
+    return dy;
+}
+
+int SolverCG::GetNx() {
+    return Nx;
+}
+
+int SolverCG::GetNy() {
+    return Ny;
+}
+
 void SolverCG::Solve(double* b, double* x) {
     unsigned int n = Nx*Ny;                         //total number of grid points
     int k;                                          //counter to track iteration number

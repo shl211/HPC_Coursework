@@ -12,6 +12,7 @@
 #include <streambuf>
 #include <cmath>
 #include <cstdio>
+#include <cblas.h>
 
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
@@ -22,6 +23,24 @@
  * @param J     matrix index j denoting the jth columns
  */
 #define IDX(I,J) ((J)*Nx + (I))                     //define a new operation to improve computation?
+
+/**
+ * @brief Test SolverCG constructor is assigning values correctly
+ */
+BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
+{
+    const int Nx = 100;
+    const int Ny = 50;
+    const double dx = 0.05;
+    const double dy = 0.02;
+    
+    SolverCG test(Nx,Ny,dx,dy);
+    
+    BOOST_CHECK_EQUAL(test.GetNx(),Nx);
+    BOOST_CHECK_EQUAL(test.GetNy(),Ny);
+    BOOST_CHECK_CLOSE(test.GetDx(),dx,1e-6);
+    BOOST_CHECK_CLOSE(test.GetDy(),dy,1e-6);
+}
 
 /**
  * @brief Test SolverCG::Solve where if input b is very close to zero, then output x should be exactly 0.0 for all entries
@@ -65,8 +84,8 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     const int l = 3;
     const double Lx = 2.0 / k;                          //correct domain for problem, such that sin sin has zero boundary conditions
     const double Ly = 2.0 / l;
-    const int Nx = 100;                                 //define number of grids with correct step sizes
-    const int Ny = 100;
+    const int Nx = 2000;                                 //define number of grids with correct step sizes
+    const int Ny = 2000;
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
     int n = Nx*Ny;
@@ -79,21 +98,10 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     
     std::srand(time(0));
     for(int i = 0; i < n; i++) {
-        b[i] = 0.0;                                     //initialise b
-        x[i] = (double) rand()/RAND_MAX;                //randomise x in range of [0,1]
+        b[i] = 0.0;                                     //initialise b and x with zeros
+        x[i] = 0.0;
     }
     
-    //impose zero BC on edges
-    for (int i = 0; i < Nx; ++i) {
-        x[IDX(i, 0)] = 0.0;                             //zero BC on bottom surface
-        x[IDX(i, Ny-1)] = 0.0;                          //zero BC on top surface
-    }
-
-    for (int j = 0; j < Ny; ++j) {
-        x[IDX(0, j)] = 0.0;                             //zero BC on left surface
-        x[IDX(Nx - 1, j)] = 0.0;                        //zero BC on right surface
-    }
-
     for (int i = 0; i < Nx; ++i) {                      //generate the sinusoidal test case input b
         for (int j = 0; j < Ny; ++j) {
             b[IDX(i,j)] = -M_PI * M_PI * (k * k + l * l)
@@ -110,16 +118,16 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
         }
     }
 
-    for(int i = 0; i < n; ++i) {
-        BOOST_CHECK_SMALL(x_actual[i]-x[i],tol);         //check error for each term between analytical and solver x is within tolerance
-    }
-
+    cblas_daxpy(n, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
+    BOOST_CHECK(cblas_dnrm2(n,x_actual,1) < tol);    //check the error 2-norm is smaller than tol*tol, or 1e-3
+    std::cout << cblas_dnrm2(n,x_actual,1) << std::endl;
     delete[] x;                                          //deallocate memory
     delete[] x_actual;
     delete[] b;
 }
 
-//test setting functions as well as print config, unable to test separate case of print config where nu > 0.25 as program terminates
+//BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize)
+
 /**
  * @brief Test case to confirm setting functions work for configuring the solver. Tests this via the LidDrivenCavity::PrintConfiguration function.
  */

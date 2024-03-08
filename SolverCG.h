@@ -13,10 +13,10 @@ class SolverCG
 public:
     /**
      * @brief Constructor to create the solver by specifying the spatial domain of the problem \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$
-     * @param pNx   Number of grid points in x direction
-     * @param pNy   Number of grid points in y direction
-     * @param pdx   Grid spacing in x direction, should satisfy pdx = Lx/(pNx - 1) where Lx is domain length in x direction
-     * @param pdy   Grid spacing in y direction, should satisfy pdy = Ly/(pNy - 1) where Ly is domain length in y direction
+     * @param[in] pNx   Number of grid points in x direction
+     * @param[in] pNy   Number of grid points in y direction
+     * @param[in] pdx   Grid spacing in x direction, should satisfy pdx = Lx/(pNx - 1) where Lx is domain length in x direction
+     * @param[in] pdy   Grid spacing in y direction, should satisfy pdy = Ly/(pNy - 1) where Ly is domain length in y direction
      */
     SolverCG(int pNx, int pNy, double pdx, double pdy);
     
@@ -26,10 +26,34 @@ public:
     ~SolverCG();
 
     /**
+     * @brief Get the x step size parameter dx, for testing purporses
+     * @return The x step size parameter dx
+     */
+    double GetDx();
+    
+    /**
+     * @brief Get the y step size parameter dy, for testing purporses
+     * @return The y step size parameter dy
+     */
+    double GetDy();
+    
+    /**
+     * @brief Get the number of grid points in x direction Nx, for testing purporses
+     * @return The number of grid points in x direction Nx
+     */
+    int GetNx();
+     
+   /**
+     * @brief Get the number of grid points in y direction Ny, for testing purporses
+     * @return The number of grid points in y direction Ny
+     */
+    int GetNy();
+
+    /**
      * @brief Computes the solution to Ax=b via a preconditioned conjugate gradient method. Note that A describes
      the coefficients of a second-order central-difference discretisation of the operator \f$ -\nabla^2 \f$
-     * @param b     The desired result; in this context, the vorticity
-     * @param x     The computed solution; in this context, the streamfunction
+     * @param[in] b     The desired result; in this context, the vorticity
+     * @param x     On input, initial guess \f$ x_0 \f$; on output the computed solution (in this context, the streamfunction)
      */
     void Solve(double* b, double* x);
 
@@ -45,15 +69,15 @@ private:
 
     /**
      * @brief Applies the second-order central-difference discretisation of operator \f$ -\nabla^2 \f$ such that \f$ -\nabla^2 p = t \f$
-     * @param p     Input data that the operator is applied to
-     * @param t     Result of the discretisation \f$ -\nabla^2 p \f$
+     * @param[in] p     Input data that the operator is applied to
+     * @param[out] t     Result of the discretisation \f$ -\nabla^2 p \f$
      */
     void ApplyOperator(double* p, double* t);
     
     /**
      * @brief Preconditions the problem formulation Ax=b to prevent ill-condition and improve convergence rate
-     * @param p     Input original un-preconditioned Ax
-     * @param t     Output preconditioned Ax
+     * @param[in] p     Input original un-preconditioned Ax
+     * @param[out] t     Output preconditioned Ax
      */
     void Precondition(double* p, double* t);
     
