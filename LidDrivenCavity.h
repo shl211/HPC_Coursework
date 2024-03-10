@@ -190,8 +190,14 @@ private:
     MPI_Comm comm_col_grid;                 ///<MPI communicator for the process column in Cartesian topology grid
     int MPIcoords[2];                        ///<Coordinate of MPI process in a Cartesian topology grid
     int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
-    int globalNx;                                    ///<global Nx
+    int globalNx;                               ///<global Nx
     int globalNy;                               ///<global Ny
+
+    double* topData = nullptr;              ///<Buffer to store the data 1 row above top of local grid
+    double* leftData = nullptr;             ///<Buffer to store the data 1 column to left of local grid
+    double* rightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
+    double* bottomData = nullptr;              ///<Buffer to store the data 1 row below bottom of local grid
+
     
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 

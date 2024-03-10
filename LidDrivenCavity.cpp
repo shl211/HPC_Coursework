@@ -150,6 +150,11 @@ void LidDrivenCavity::Initialise()
     s   = new double[Npts]();                                       //array denoting streamfunction, allocated with zero initial condition
     tmp = new double[Npts]();                                       //temporay array, zeros
     cg  = new SolverCG(Nx, Ny, dx, dy);                             //create solver
+    
+    topData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
+    bottomData = new double[Nx]();
+    leftData = new double[Ny]();                  //left and right data have size local Ny x 1
+    rightData = new double[Ny]();
 }
 
 void LidDrivenCavity::Integrate()
@@ -215,7 +220,7 @@ void LidDrivenCavity::PrintConfiguration()
     }
     
     if (nu * dt / dx / dy > 0.25) {                                             //if timestep restriction not satisfied, terminate the program
-        if((MPIcoords[0] == 0) & (MPIcoords[1] == 0)) {
+        if((MPIcoords[0] == 0) & (MPIcoords[1] == 0)) {                     //only print on root tank
             cout << "ERROR: Time-step restriction not satisfied!" << endl;
             cout << "Maximum time-step is " << 0.25 * dx * dy / nu << endl;
         }
@@ -230,6 +235,11 @@ void LidDrivenCavity::CleanUp()
         delete[] s;
         delete[] tmp;
         delete cg;
+        
+        delete[] topData;
+        delete[] bottomData;
+        delete[] rightData;
+        delete[] leftData;
     }
 }
 
