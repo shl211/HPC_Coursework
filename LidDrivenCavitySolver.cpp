@@ -143,7 +143,7 @@ int main(int argc, char* argv[])
     }
 
     //-----------------------------------------------------Parallel Solver---------------------------------------------------//
-
+    
     LidDrivenCavity* solver = new LidDrivenCavity(comm_row_grid,comm_col_grid,coords[0],coords[1]);
                                                                                 //define solver and specify problem with user inputs
     solver->SetDomainSize(vm["Lx"].as<double>(),vm["Ly"].as<double>());                         //define each local solver domain

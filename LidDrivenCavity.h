@@ -20,10 +20,10 @@ public:
      * @brief Constructor containing information on MPI process within a Cartesian topology
      * @param[in] rowGrid   MPI communicator for the process row in Cartesian topology grid
      * @param[in] colGrid   MPI communicator for the process column in Cartesian topology grid
-     * @param[in] rowRank   Denotes the row the MPI process is within a Cartesian topology grid i.e.coordinates[0]
-     * @param[in] colRank   Denotes the column the MPI process is within a Cartesian topology grid i.e.coordinates[1]
+     * @param[in] coords0   Denotes the row the MPI process is within a Cartesian topology grid i.e.coordinates[0]
+     * @param[in] coords1   Denotes the column the MPI process is within a Cartesian topology grid i.e.coordinates[1]
      */
-    LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int rowRank, int colRank);
+    LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int coords0, int coords1);
     
     /**
      * @brief Destructor to deallocate memory
@@ -193,11 +193,21 @@ private:
     int globalNx;                               ///<global Nx
     int globalNy;                               ///<global Ny
 
-    double* topData = nullptr;              ///<Buffer to store the data 1 row above top of local grid
-    double* leftData = nullptr;             ///<Buffer to store the data 1 column to left of local grid
-    double* rightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
-    double* bottomData = nullptr;              ///<Buffer to store the data 1 row below bottom of local grid
+    int rowRank;///<rank of current process in comm_row_grid
+    int colRank;///<rank of current process in comm_col_grid
+    int topRank;///<rank of process above current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing above
+    int leftRank;///<rank of process to left of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to left
+    int rightRank;///<rank of process to right of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to right
+    int bottomRank;///<rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
 
+    double* vTopData = nullptr;              ///<Buffer to store the data 1 row above top of local grid
+    double* vLeftData = nullptr;             ///<Buffer to store the data 1 column to left of local grid
+    double* vRightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
+    double* vBottomData = nullptr;              ///<Buffer to store the data 1 row below bottom of local grid
+    double* sTopData = nullptr;              ///<Buffer to store the data 1 row above top of local grid
+    double* sLeftData = nullptr;             ///<Buffer to store the data 1 column to left of local grid
+    double* sRightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
+    double* sBottomData = nullptr;              ///<Buffer to store the data 1 row below bottom of local grid
     
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 

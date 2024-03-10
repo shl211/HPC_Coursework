@@ -18,21 +18,27 @@ using namespace std;
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
 
-LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int rowRank, int colRank)
+LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int coords0, int coords1)
 {
     comm_row_grid = rowGrid;
     comm_col_grid = colGrid;
-    MPIcoords[0] = rowRank;
-    MPIcoords[1] = colRank;
-    MPI_Comm_rank(comm_row_grid,&size);     //get size of communicator
-    
-    //int rootCoord[2] = {0,0};                   //root rank
-    //int rootRank;
+    MPIcoords[0] = coords0;                 //note that coordinates describe the grid index in matrix notation
+    MPIcoords[1] = coords1;
+    MPI_Comm_size(comm_row_grid,&size);     //get size of communicator
     
     //reduce global values onto all grid only, for correct calculation of dx and dy and printing of Lx,Ly,Nx,Ny etc.
     MPI_Allreduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,comm_row_grid);
     MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);   //-> note for future, is there any point in splitting Lx Ly up in main, when I'm gonna need global values anyway?
+
+    //compute ranks along the row communciator and along teh column communicator
+    MPI_Comm_rank(comm_row_grid, &rowRank); 
+    MPI_Comm_rank(comm_col_grid, &colRank);
+
+    //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
+    MPI_Cart_shift(comm_col_grid,0,1,&topRank,&bottomRank);
+    MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);
     
+    //cout << "Coord (" << coords0 << "," << coords1 << ") has row rank " << rowRank << " and left is " << leftRank << " and right is "<< right << endl;
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -151,10 +157,15 @@ void LidDrivenCavity::Initialise()
     tmp = new double[Npts]();                                       //temporay array, zeros
     cg  = new SolverCG(Nx, Ny, dx, dy);                             //create solver
     
-    topData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
-    bottomData = new double[Nx]();
-    leftData = new double[Ny]();                  //left and right data have size local Ny x 1
-    rightData = new double[Ny]();
+    vTopData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
+    vBottomData = new double[Nx]();
+    vLeftData = new double[Ny]();                  //left and right data have size local Ny x 1
+    vRightData = new double[Ny]();
+    
+    sTopData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
+    sBottomData = new double[Nx]();
+    sLeftData = new double[Ny]();                  //left and right data have size local Ny x 1
+    sRightData = new double[Ny]();
 }
 
 void LidDrivenCavity::Integrate()
@@ -236,10 +247,15 @@ void LidDrivenCavity::CleanUp()
         delete[] tmp;
         delete cg;
         
-        delete[] topData;
-        delete[] bottomData;
-        delete[] rightData;
-        delete[] leftData;
+        delete[] vTopData;
+        delete[] vBottomData;
+        delete[] vRightData;
+        delete[] vLeftData;
+        
+        delete[] sTopData;
+        delete[] sBottomData;
+        delete[] sRightData;
+        delete[] sLeftData;
     }
 }
 
@@ -248,7 +264,7 @@ void LidDrivenCavity::UpdateDxDy()
     dx = Lx / (globalNx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
     dy = Ly / (globalNy-1);
     
-    Npts = Nx * Ny;         //total number of grid points
+    Npts = Nx * Ny;         //total number of grid points, locally
 }
 
 void LidDrivenCavity::Advance()
@@ -258,6 +274,11 @@ void LidDrivenCavity::Advance()
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;                                                //store 1/dx,1/dy,1/dx/dx,1/dy/dy to optimise performance
 
+    //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
+    cblas_dcopy(Nx, s+Ny-1, Ny, vBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent
+    //MPI_Send(
+    
+    
     // Boundary node vorticity
     for (int i = 1; i < Nx-1; ++i) {
         // bottom
