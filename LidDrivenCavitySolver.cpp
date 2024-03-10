@@ -111,7 +111,6 @@ int main(int argc, char* argv[])
     //so each process has different size Lx and Ly, and differente size Nx and Ny, but  same everything else
     int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
     int rowStart,rowEnd,colStart,colEnd;                //denotes index of where in problem domain the process accesses directly
-    double xDomainLength,yDomainLength;                    //local lengths of Nx and Ny
     int rem;
     
     xDomainSize = vm["Nx"].as<int>() / p;           //minimum size of each process in x and y domain
@@ -142,15 +141,12 @@ int main(int argc, char* argv[])
         colStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
         colEnd = colStart + xDomainSize;
     }
-    
-    xDomainLength = vm["Lx"].as<double>() * xDomainSize/vm["Nx"].as<int>();            //calculate new local domain lengths, this ensures dx and dy same as serial case
-    yDomainLength = vm["Ly"].as<double>() * yDomainSize/vm["Ny"].as<int>();
 
     //-----------------------------------------------------Parallel Solver---------------------------------------------------//
 
     LidDrivenCavity* solver = new LidDrivenCavity(comm_row_grid,comm_col_grid,coords[0],coords[1]);
                                                                                 //define solver and specify problem with user inputs
-    solver->SetDomainSize(xDomainLength,yDomainLength);                         //define each local solver domain
+    solver->SetDomainSize(vm["Lx"].as<double>(),vm["Ly"].as<double>());                         //define each local solver domain
     solver->SetGridSize(xDomainSize,yDomainSize);
     solver->SetTimeStep(vm["dt"].as<double>());
     solver->SetFinalTime(vm["T"].as<double>());

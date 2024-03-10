@@ -29,12 +29,9 @@ LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int rowRa
     //int rootCoord[2] = {0,0};                   //root rank
     //int rootRank;
     
-    //reduce global values onto all grid only
+    //reduce global values onto all grid only, for correct calculation of dx and dy and printing of Lx,Ly,Nx,Ny etc.
     MPI_Allreduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,comm_row_grid);
-    MPI_Allreduce(&Lx,&globalLx,1,MPI_DOUBLE,MPI_SUM,comm_row_grid);
-    
-    MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);
-    MPI_Allreduce(&Ly,&globalLy,1,MPI_DOUBLE,MPI_SUM,comm_col_grid);
+    MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);   //-> note for future, is there any point in splitting Lx Ly up in main, when I'm gonna need global values anyway?
     
 }
 
@@ -73,11 +70,11 @@ int LidDrivenCavity::GetNpts() {
 }
 
 double LidDrivenCavity::GetLx() {
-    return globalLx;
+    return Lx;
 }    
 
 double LidDrivenCavity::GetLy() {
-    return globalLy;
+    return Ly;
 }    
 
 double LidDrivenCavity::GetRe() {
@@ -122,6 +119,10 @@ void LidDrivenCavity::SetGridSize(int nx, int ny)
 {
     this->Nx = nx;
     this->Ny = ny;
+    //update global values
+    MPI_Allreduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,comm_row_grid);
+    MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);   //-> note for future, is there any point in splitting Lx Ly up in main, when I'm gonna need global values anyway?
+    
     UpdateDxDy();                                                   //update grid spacing dx dy based off new number of grid points
 }
 
@@ -204,7 +205,7 @@ void LidDrivenCavity::PrintConfiguration()
     if((MPIcoords[0] == 0) & (MPIcoords[1]== 0)) {
         cout << "Grid size: " << globalNx << " x " << globalNy << endl;                         //print the current problem configuration
         cout << "Spacing:   " << dx << " x " << dy << endl;
-        cout << "Length:    " << globalLx << " x " << globalLy << endl;
+        cout << "Length:    " << Lx << " x " << Ly << endl;
         cout << "Grid pts:  " << globalNx*globalNy << endl;
         cout << "Timestep:  " << dt << endl;
         cout << "Steps:     " << ceil(T/dt) << endl;
@@ -234,8 +235,8 @@ void LidDrivenCavity::CleanUp()
 
 void LidDrivenCavity::UpdateDxDy()
 {
-    dx = globalLx / (globalNx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
-    dy = globalLy / (globalNy-1);
+    dx = Lx / (globalNx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
+    dy = Ly / (globalNy-1);
     
     Npts = Nx * Ny;         //total number of grid points
 }

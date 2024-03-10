@@ -192,7 +192,6 @@ private:
     int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
     int globalNx;                                    ///<global Nx
     int globalNy;                               ///<global Ny
-    double globalLx, globalLy;              //global, non-discretised values i.e. actual configuration
     
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 
