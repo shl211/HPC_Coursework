@@ -312,12 +312,12 @@ void LidDrivenCavity::Advance()
     if(bottomRank == MPI_PROC_NULL) {          //assign bottom BC
         if(Ny == 1) {       //first capture edge case where only one row, so second row in process above
             for(int i = 1; i < Nx - 1; ++i) {
-                v[IDX(i,0)]     = 2.0 * dy2i * (s[IDX(i,0)]   - sTopData[i]);
+                v[IDX(i,0)]     = 2.0 * dy2i * (s[IDX(i,0)]   - sTopData[i]);           //boundary node vorticity
             }
         }
         else {              //for more general case 
             for(int i = 1; i < Nx-1; ++i) {
-                v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
+                v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);              //boundary node vorticity
             }
         }
     }
@@ -370,15 +370,300 @@ void LidDrivenCavity::Advance()
         }
     }
 
-    // Compute interior vorticity
-    for (int i = 1; i < Nx - 1; ++i) {
-        for (int j = 1; j < Ny - 1; ++j) {
-            v[IDX(i,j)] = dx2i*(
-                    2.0 * s[IDX(i,j)] - s[IDX(i+1,j)] - s[IDX(i-1,j)])                  //relating to x terms
-                        + 1.0/dy/dy*(
-                    2.0 * s[IDX(i,j)] - s[IDX(i,j+1)] - s[IDX(i,j-1)]);                 //relating to y terms
+    //compute interior vorticity for non-boundary processes, for the borders of those processes which require other data to be acceessed
+    if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL)) {
+
+        //for computations that require data from other processes
+        //corners first
+        
+        if(Nx == 1) {               //case where only one column, so needs access to data on both left and right, as well as top/bottom
+            
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - sRightData[0] - sLeftData[0])
+                        + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);    //bottom 'corner'
+            
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - sRightData[0] - sLeftData[0])
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);  //top 'corner'
+        }
+        
+        if (Ny == 1) {              //case where only one row, so needs access to data on top and bottom, as well as left/right
+            
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])  //'right' corner
+                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - sTopData[Nx-1] - sBottomData[Nx-1]);   
+            
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //'left' corner
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - sBottomData[0]);
+        }
+        else{                       //otherwise, your usual corner, requiring only two data points from other processes
+            
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                  //bottom left, corresponds to first entry of left data
+                        + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                      //and first entry of bottom data
+
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])  //bottom right, corresponds to first entry of right
+                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);                //and last entry of bottom data
+            
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //top left, corresponds to last entry of left data
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                      //and first entry of top data
+                        
+            v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])//top right, corresponds to last entry of right data
+                        + dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);             //and last entry of top data
+        }
+        
+        //now all other data along the process edges
+        if((Nx == 1) & (Ny > 1)) {  //if domain is effectively a column vector, edges require left and right data
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])            //column accesses left and right data
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+        }
+        else if((Nx > 1) & (Ny == 1)) { //if domain is effectively a row vector, edges require bottom and top data
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //row accesses bottom and top data
+                            + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
+            }
+        }
+        else{   //for all other cases, only need to access one dataset from other processes
+        
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                            + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+            }
+            
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                            + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+            }
+            
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])            //left column, requires access to teh left
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+            
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-1,j)])  //right column, requires access to teh righ
+                            + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
+            }
+        }
+    }//now for boundary processes, calculate domain boundaries for which other data is needed
+    else if((bottomRank == MPI_PROC_NULL & leftRank == MPI_PROC_NULL) & !(Nx == 1 | Ny == 1)){//bottom left corner of process grid
+        //for cases where domain is efefctively row vector or column vector, do nothing as BC already assigned
+        //so compute the top right 'corner' for all other cases
+        v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])//top right, corresponds to last entry of right data
+                    + dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);             //and last entry of top data
+                            
+        //now compute the top and RHS of domain
+        for(int i = 1; i < Nx - 1; ++i) {
+            v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                        + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+        }
+                
+        for(int j = 1; j < Ny - 1; ++j) {
+            v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-1,j)])  //right column, requires access to teh righ
+                    + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
         }
     }
+    else if((bottomRank == MPI_PROC_NULL & rightRank == MPI_PROC_NULL) & !(Nx == 1 | Ny == 1)) {//bottom right, same logic as before
+            //need top left corner, and then top and left data
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //top left, corresponds to last entry of left data
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                      //and first entry of top data
+                        
+        for(int i = 1; i < Nx - 1; ++i) {
+            v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                        + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+        }
+
+        for(int j = 1; j < Ny - 1; ++j) {
+            v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])            //left column, requires access to the left
+                    + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+        }
+    }//--EVERYTHING AFTER THIS POINT IS REPEAT BUT FOR DIFFERENT CASES, LOOK TO USE IF STATEMENTS IN ABOVE TO GET RID OF FOLLOWING CODE --//
+    else if((topRank == MPI_PROC_NULL & leftRank == MPI_PROC_NULL) & !(Nx == 1 | Ny == 1)) { //top left process
+        v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])  //bottom right, corresponds to first entry of right
+                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);                //and last entry of bottom data
+            
+        //need to compute bottom + right edges
+        for(int i = 1; i < Nx - 1; ++i) {
+            v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                        + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+        }
+        
+        for(int i = 1; i < Nx - 1; ++i) {
+            v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                        + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+        }
+    }
+    else if((topRank == MPI_PROC_NULL & rightRank == MPI_PROC_NULL) & !(Nx == 1 | Ny == 1)) { //top right process
+        v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                  //bottom left, corresponds to first entry of left data
+                    + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                      //and first entry of bottom data
+                    
+        //need to compute bottom + left
+        for(int i = 1; i < Nx - 1; ++i) {
+            v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                        + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+        }
+                
+        for(int j = 1; j < Ny - 1; ++j) {
+            v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])            //left column, requires access to the left
+                    + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+        }
+    }
+    else if(bottomRank == MPI_PROC_NULL & Ny > 1) {      //bottom process; if domain is row vector, do nothing
+        if(Nx == 1) {   //for case where it's a column vector
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - sRightData[0] - sLeftData[0])
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);  //top 'corner'
+                        
+            for(int j = 1; j < Ny - 1; ++j) { //domain is effectively a column vector, edges require left and right data
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])            //column accesses left and right data
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+        }
+        else {  //for all other cases
+            //find top left and right corners
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //top left, corresponds to last entry of left data
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                      //and first entry of top data
+                        
+            v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])//top right, corresponds to last entry of right data
+                        + dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);             //and last entry of top data
+        
+            //compute process edges 
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                            + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+            }
+            
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])            //left column, requires access to teh left
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+            
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-1,j)])  //right column, requires access to teh righ
+                            + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
+            }
+        }
+    }
+    else if (topRank == MPI_PROC_NULL & Ny > 1) {//top process; if domain is row vector, do nothing
+        if(Nx == 1) {   //case where domain is column vector
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - sRightData[0] - sLeftData[0])
+                    + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);    //bottom 'corner'
+                    
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])            //column accesses left and right data
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+        }
+        else{
+            //bottom corners required
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                  //bottom left, corresponds to first entry of left data
+                        + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                      //and first entry of bottom data
+
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])  //bottom right, corresponds to first entry of right
+                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);                //and last entry of bottom data
+            
+            //bottom, left, right process edges
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                            + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+            }
+                
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])            //left column, requires access to teh left
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+                
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-1,j)])  //right column, requires access to teh righ
+                            + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
+            }
+        }   
+    }
+    else if (leftRank == MPI_PROC_NULL & Nx > 1) {          //left side; if domain is column vector, do nothing
+        if(Ny == 1) {//case where domain is row vector
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])  //'right' corner
+                    + dy2i * (2.0 * s[IDX(Nx-1,0)] - sTopData[Nx-1] - sBottomData[Nx-1]);  
+                    
+             for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //row accesses bottom and top data
+                            + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
+            }
+        }
+        else{
+            //need top right and bottom right
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])  //bottom right, corresponds to first entry of right
+                    + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);                //and last entry of bottom data
+                
+            v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])//top right, corresponds to last entry of right data
+                        + dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);             //and last entry of top data
+                        
+            //cmpute right up down process edges
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                            + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+            }
+            
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                            + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+            }
+            
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-1,j)])  //right column, requires access to teh righ
+                            + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
+            }
+        }
+    }
+    else if (rightRank == MPI_PROC_NULL & Nx > 1) {          //right side; if domain is column vector, do nothing
+        if(Ny == 1) {//case where domain is row vector
+
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //'left' corner
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - sBottomData[0]);
+                        
+             for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //row accesses bottom and top data
+                            + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
+            }
+        }
+        else{
+            //need top left and bottom left
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                  //bottom left, corresponds to first entry of left data
+                        + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                      //and first entry of bottom data
+
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //top left, corresponds to last entry of left data
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                      //and first entry of top data
+            
+            //cmpute left up down process edges
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                            + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+            }
+            
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) //top row, requires access to top
+                            + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+            }
+            
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //bottom row, requires access to bottom
+                            + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+            }
+        }
+    }//----------------------------------------------------------------------------------------------------------------//
+    
+    //once the boundaries of each local domain has been computed, send boundary vorticity data to adjacent processes in advance
+    //TBC
+    
+    //compute rest of data that doesn't require data from other processes i.e. interior points of domain
+    if(Nx > 2 && Ny > 2) {  //for cases where either Nx Ny is 2 or less, above already computes all grid points
+        for (int i = 1; i < Nx - 1; ++i) {
+            for (int j = 1; j < Ny - 1; ++j) {
+                v[IDX(i,j)] = dx2i*( 2.0 * s[IDX(i,j)] - s[IDX(i+1,j)] - s[IDX(i-1,j)])                  //relating to x terms
+                            + dy2i*( 2.0 * s[IDX(i,j)] - s[IDX(i,j+1)] - s[IDX(i,j-1)]);                 //relating to y terms
+            }
+        }
+    }
+    
+    
+    
+    //receive the data
 
     // Time advance vorticity
     for (int i = 1; i < Nx - 1; ++i) {
@@ -392,6 +677,9 @@ void LidDrivenCavity::Advance()
               + nu * (v[IDX(i,j+1)] - 2.0 * v[IDX(i,j)] + v[IDX(i,j-1)])*dy2i);
         }
     }
+    
+    //check for deadlock
+    cout << "DEADLOCK NOPE!" << endl;
     MPI_Barrier(MPI_COMM_WORLD);
     exit(-1);
     // Solve Poisson problem
