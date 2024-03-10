@@ -269,29 +269,105 @@ void LidDrivenCavity::UpdateDxDy()
 
 void LidDrivenCavity::Advance()
 {
+    //----------------Send streamfunction data asap -----------------// Note: maybe send left right data first, as no processing
+    //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
+    //similar logic for bottom, left and right
+    //for rows, need to extract data first
+    cblas_dcopy(Nx, s, Ny, vTopData, 1);    //store only top row of streamfunction data into vTopData, Nx data to send upwards
+    cblas_dcopy(Nx, s+Ny-1, Ny, vBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent, Nx data to send
+    
+    if(topRank != MPI_PROC_NULL) {               //send data upwards unless at teh top boundary
+        MPI_Send(vTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
+    }
+    if(bottomRank != MPI_PROC_NULL){                   //send data downwards unlsss at teh bottom bounday
+        MPI_Send(vBottomData, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid);            //tag = 1 -> streamfunction data sent down
+    }
+    
+    //for left and right columns, no need to extract data first as already in column major
+    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
+    if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
+        MPI_Send(s+Ny*(Nx-1),Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
+    }
+    //s denotes start of leftmost column
+    if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
+        MPI_Send(s,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
+    }
+    
     double dxi  = 1.0/dx;
     double dyi  = 1.0/dy;
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;                                                //store 1/dx,1/dy,1/dx/dx,1/dy/dy to optimise performance
 
-    //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
-    cblas_dcopy(Nx, s+Ny-1, Ny, vBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent
-    //MPI_Send(
-    
-    
-    // Boundary node vorticity
-    for (int i = 1; i < Nx-1; ++i) {
-        // bottom
-        v[IDX(i,0)]    = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
-        // top
-        v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - s[IDX(i,Ny-2)])
-                       - 2.0 * dyi*U;
+    //receive top and bottom streamfunction data first
+    if(topRank != MPI_PROC_NULL) {               //all ranks but the top will receive streamfunction data from above, tag 1
+        MPI_Recv(sTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);
     }
-    for (int j = 1; j < Ny-1; ++j) {
-        // left
-        v[IDX(0,j)]    = 2.0 * dx2i * (s[IDX(0,j)]    - s[IDX(1,j)]);
-        // right
-        v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - s[IDX(Nx-2,j)]);
+    if(bottomRank != MPI_PROC_NULL) {                  //all ranks but the bottom will receive streamfunction data from below, tag 0
+        MPI_Recv(sBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);
+    }
+    
+    // Boundary node vorticity, for edge case where only one data row or column, so need to access data from other processes
+    
+    //break up BC assignment to top bottom left right separately, due to gridded nature
+    if(bottomRank == MPI_PROC_NULL) {          //assign bottom BC
+        if(Ny == 1) {       //first capture edge case where only one row, so second row in process above
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)]     = 2.0 * dy2i * (s[IDX(i,0)]   - sTopData[i]);
+            }
+        }
+        else {              //for more general case 
+            for(int i = 1; i < Nx-1; ++i) {
+                v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
+            }
+        }
+    }
+    
+    if(topRank == MPI_PROC_NULL) {              //assign top BC
+        if(Ny == 1) {           //first capture edge case where only one row, so second row in process below
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - sBottomData[i]) - 2.0 * dyi * U;
+            }
+        }
+        else {      //more general case
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - s[IDX(i,Ny-2)]) - 2.0 * dyi * U;
+            }
+        }
+    }
+    
+    //now receive left and right data
+    if(leftRank != MPI_PROC_NULL) {               //all ranks but the left will receive streamfunction data from left, tag 3
+        MPI_Recv(sLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);
+    }
+    if(rightRank != MPI_PROC_NULL) {               //all ranks but the right will receive streamfunction data from right, tag 2
+        MPI_Recv(sRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
+    }
+    
+    //impose left right BCs
+    if(leftRank == MPI_PROC_NULL) {              //assign left BC
+        if(Nx == 1) {           //first capture edge case where only one column, so second column in process to the right
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - sRightData[j]);
+            }
+        }
+        else {      //more general case
+            for(int j = 1; j < Nx - 1; ++j) {
+                v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - s[IDX(1,j)]);
+            }
+        }
+    }
+    
+    if(rightRank == MPI_PROC_NULL) {              //assign right BC
+        if(Nx == 1) {           //first capture edge case where only one column, so second column in process to the left
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - sLeftData[j]);
+            }
+        }
+        else {      //more general case
+            for(int j = 1; j < Nx - 1; ++j) {
+                v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - s[IDX(Nx-2,j)]);
+            }
+        }
     }
 
     // Compute interior vorticity
@@ -316,7 +392,8 @@ void LidDrivenCavity::Advance()
               + nu * (v[IDX(i,j+1)] - 2.0 * v[IDX(i,j)] + v[IDX(i,j-1)])*dy2i);
         }
     }
-    
+    MPI_Barrier(MPI_COMM_WORLD);
+    exit(-1);
     // Solve Poisson problem
     cg->Solve(v, s);
 }
