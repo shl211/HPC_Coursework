@@ -190,6 +190,9 @@ private:
     MPI_Comm comm_col_grid;                 ///<MPI communicator for the process column in Cartesian topology grid
     int MPIcoords[2];                        ///<Coordinate of MPI process in a Cartesian topology grid
     int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
+    int globalNx;                                    ///<global Nx
+    int globalNy;                               ///<global Ny
+    double globalLx, globalLy;              //global, non-discretised values i.e. actual configuration
     
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 

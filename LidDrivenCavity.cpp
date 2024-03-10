@@ -25,6 +25,17 @@ LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int rowRa
     MPIcoords[0] = rowRank;
     MPIcoords[1] = colRank;
     MPI_Comm_rank(comm_row_grid,&size);     //get size of communicator
+    
+    //int rootCoord[2] = {0,0};                   //root rank
+    //int rootRank;
+    
+    //reduce global values onto all grid only
+    MPI_Allreduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,comm_row_grid);
+    MPI_Allreduce(&Lx,&globalLx,1,MPI_DOUBLE,MPI_SUM,comm_row_grid);
+    
+    MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);
+    MPI_Allreduce(&Ly,&globalLy,1,MPI_DOUBLE,MPI_SUM,comm_col_grid);
+    
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -50,23 +61,23 @@ double LidDrivenCavity::GetDy() {
 }   
     
 int LidDrivenCavity::GetNx() {
-    return Nx;
+    return globalNx;
 }
 
 int LidDrivenCavity::GetNy() {
-    return Ny;
+    return globalNy;
 }
 
 int LidDrivenCavity::GetNpts() {
-    return Npts;
+    return globalNx*globalNy;
 }
 
 double LidDrivenCavity::GetLx() {
-    return Lx;
+    return globalLx;
 }    
 
 double LidDrivenCavity::GetLy() {
-    return Ly;
+    return globalLy;
 }    
 
 double LidDrivenCavity::GetRe() {
@@ -190,24 +201,6 @@ void LidDrivenCavity::WriteSolution(std::string file)
 
 void LidDrivenCavity::PrintConfiguration()
 {
-    int globalNx, globalNy;
-    double globalLx, globalLy;                  //global, non-discretised values i.e. actual configuration
-    int rootCoord[2] = {0,0};                   //root rank
-    int rootRank;
-    
-    //reduce global values onto root value only, grid in 
-    if(MPIcoords[0] == 0) {                                         //only use one row communicator calculate number of columns for Nx
-            MPI_Cart_rank(comm_row_grid,rootCoord, &rootRank);
-            MPI_Reduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,rootRank,comm_row_grid);
-            MPI_Reduce(&Lx,&globalLx,1,MPI_DOUBLE,MPI_SUM,rootRank,comm_row_grid);
-    }
-    
-    if(MPIcoords[1] == 0) {                                         //only use one column communicator calculate number of rows for Ny
-            MPI_Cart_rank(comm_col_grid,rootCoord, &rootRank);
-            MPI_Reduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,rootRank,comm_col_grid);
-            MPI_Reduce(&Ly,&globalLy,1,MPI_DOUBLE,MPI_SUM,rootRank,comm_col_grid);
-    }
-    
     if((MPIcoords[0] == 0) & (MPIcoords[1]== 0)) {
         cout << "Grid size: " << globalNx << " x " << globalNy << endl;                         //print the current problem configuration
         cout << "Spacing:   " << dx << " x " << dy << endl;
@@ -241,16 +234,9 @@ void LidDrivenCavity::CleanUp()
 
 void LidDrivenCavity::UpdateDxDy()
 {
-    if(size == 1) {
-        dx = Lx / (Nx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
-        dy = Ly / (Ny-1);
-    }
-    else {              //if not just 1 process, then grid is inclusive points, not exclusive, so no -1
-        dx = Lx/Nx;
-        dy = Ly/Ny;
-    }
+    dx = globalLx / (globalNx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
+    dy = globalLy / (globalNy-1);
     
-
     Npts = Nx * Ny;         //total number of grid points
 }
 
