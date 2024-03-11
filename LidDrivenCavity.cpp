@@ -400,8 +400,8 @@ void LidDrivenCavity::Advance()
             v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //'left' corner
                         + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - sBottomData[0]);
         }
-        else{                       //otherwise, your usual corner, requiring only two data points from other processes
-            
+        if(!(Nx == 1 | Ny == 1)){                       //otherwise, your usual corner, requiring only two data points from other processes
+            //---- DON'T USE ELSE----//
             v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                  //bottom left, corresponds to first entry of left data
                         + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                      //and first entry of bottom data
 
@@ -706,16 +706,144 @@ void LidDrivenCavity::Advance()
     }
 
     // Time advance vorticity; leave boundary edges untouched
-    
-    for (int i = 1; i < Nx - 1; ++i) {
-        for (int j = 1; j < Ny - 1; ++j) {
-            vNext[IDX(i,j)] = v[IDX(i,j)] + dt*(
-                ( (s[IDX(i+1,j)] - s[IDX(i-1,j)]) * 0.5 * dxi
-                 *(v[IDX(i,j+1)] - v[IDX(i,j-1)]) * 0.5 * dyi)
-              - ( (s[IDX(i,j+1)] - s[IDX(i,j-1)]) * 0.5 * dyi
-                 *(v[IDX(i+1,j)] - v[IDX(i-1,j)]) * 0.5 * dxi)
-              + nu * (v[IDX(i+1,j)] - 2.0 * v[IDX(i,j)] + v[IDX(i-1,j)])*dx2i
-              + nu * (v[IDX(i,j+1)] - 2.0 * v[IDX(i,j)] + v[IDX(i,j-1)])*dy2i);
+    if(!boundaryDomain) {
+        
+        if(Nx == 1 & Ny == 1) {             //if domain is effectively a cell, need data from all surrounding data
+            
+            vNext[0] = v[0] + dt * (
+                ( (sRightData[0] - sLeftData[0]) * 0.5 * dxi
+                 *(vTopData[0] - vBottomData[0]) * 0.5 * dyi)
+               -( (sTopData[0] - sBottomData[0]) * 0.5 * dyi
+                 *(vRightData[0] - vLeftData[0]) * 0.5 * dxi)
+               + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
+               + nu * (vTopData[0] - 2.0 * v[0] + vBottomData[0])*dy2i);
+        }
+        if(Nx == 1 & Ny != 1) {             //if domain is a column vector
+            
+            vNext[0] = v[0] + dt * (
+                ( (sRightData[0] - sLeftData[0]) * 0.5 * dxi
+                 *(v[1] - vBottomData[0]) * 0.5 * dyi)
+               -( (s[1] - sBottomData[0]) * 0.5 * dyi
+                 *(vRightData[0] - vLeftData[0]) * 0.5 * dxi)
+               + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
+               + nu * (v[1] - 2.0 * v[0] + vBottomData[0])*dy2i);         //bottom 'corner'
+               
+            vNext[Ny-1] = v[Ny-1] + dt * (
+                ( (sRightData[Ny-1] - sLeftData[Ny-1]) * 0.5 * dxi
+                 *(vTopData[0] - v[Ny-2]) * 0.5 * dyi)
+               -( (sTopData[0] - s[Ny-2]) * 0.5 * dyi
+                 *(vRightData[Ny-1] - vLeftData[Ny-1]) * 0.5 * dxi)
+               + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
+               + nu * (vTopData[0] - 2.0 * v[0] + v[Ny-2])*dy2i);         //top 'corner'
+               
+            for(int j = 1; j < Ny - 1; ++j) {
+                vNext[j] = v[j] + dt*(            //for column, only need left and right proecss data
+                    ( (sRightData[j] - sLeftData[j]) * 0.5 * dxi
+                     *(v[j+1] - v[j-1]) * 0.5 * dyi)
+                  - ( (s[j+1] - s[j-1]) * 0.5 * dyi
+                     *(vRightData[j] - vLeftData[j]) * 0.5 * dxi)
+                  + nu * (vRightData[j] - 2.0 * v[j] + vLeftData[j])*dx2i
+                  + nu * (v[j+1] - 2.0 * v[j] + v[j-1])*dy2i);
+            }
+        }
+        
+        if(Nx != 1 & Ny == 1) {         //if domain is a row vector
+            vNext[0] = v[0] + dt*(                                //left 'corner'
+                    ( (s[1] - sLeftData[0]) * 0.5 * dxi
+                     *(vTopData[0] - vBottomData[0]) * 0.5 * dyi)
+                  - ( (sTopData[0] - sBottomData[0]) * 0.5 * dyi
+                     *(v[1] - vLeftData[0]) * 0.5 * dxi)
+                  + nu * (v[1] - 2.0 * v[0] + vLeftData[0])*dx2i
+                  + nu * (vTopData[0] - 2.0 * v[0] + vBottomData[0])*dy2i);
+                  
+            vNext[Nx-1] = v[Nx-1] + dt*(                    //right 'corner'
+                ( (sRightData[0] - s[Nx-2]) * 0.5 * dxi
+                 *(vTopData[Nx-1] - vBottomData[Nx-1]) * 0.5 * dyi)
+              - ( (sTopData[Nx-1] - sBottomData[Nx-1]) * 0.5 * dyi
+                 *(vRightData[0] - v[Nx-2]) * 0.5 * dxi)
+              + nu * (vRightData[0] - 2.0 * v[Nx-1] + v[Nx-2])*dx2i
+              + nu * (vTopData[Nx-1] - 2.0 * v[Nx-1] + vBottomData[Nx-1])*dy2i);
+              
+            for(int i = 0; i < Nx - 1; ++i) {
+                vNext[i] = v[i] + dt*(                //row needs access to top an bototm
+                    ( (s[i+1] - s[i-1]) * 0.5 * dxi
+                     *(vTopData[i] - vBottomData[i]) * 0.5 * dyi)
+                  - ( (sTopData[i] - sBottomData[i]) * 0.5 * dyi
+                     *(v[i+1] - v[i-1]) * 0.5 * dxi)
+                  + nu * (v[i+1] - 2.0 * v[i] + v[i-1])*dx2i
+                  + nu * (vTopData[i] - 2.0 * v[i] + vBottomData[i])*dy2i);
+            }
+        }
+        
+        if(!(Nx == 1 | Ny == 1)){       //for all other process domain, do general case for borders
+            vNext[IDX(0,0)] = v[IDX(0,0)] + dt*(                            //compute bottom left corner, access left and bottom
+                ( (s[IDX(1,0)] - sLeftData[0]) * 0.5 * dxi
+                 *(v[IDX(0,1)] - vBottomData[0]) * 0.5 * dyi)
+                - ( (s[IDX(1,0)] - sBottomData[0]) * 0.5 * dyi
+                *(v[IDX(1,0)] - vLeftData[0]) * 0.5 * dxi)
+                + nu * (v[IDX(1,0)] - 2.0 * v[IDX(0,0)] + vLeftData[0])*dx2i
+                + nu * (v[IDX(0,1)] - 2.0 * v[IDX(0,0)] + vBottomData[0])*dy2i);
+                
+            vNext[IDX(Nx-1,0)] = v[IDX(Nx-1,0)] + dt*(                            //compute bottom right corner, acess right and bottom
+                ( (sRightData[0] - s[IDX(Nx-2,0)]) * 0.5 * dxi
+                 *(v[IDX(Nx-1,1)] - vBottomData[Nx-1]) * 0.5 * dyi)
+              - ( (s[IDX(Nx-1,1)] - sBottomData[Nx-1]) * 0.5 * dyi
+                 *(vRightData[0] - v[IDX(Nx-2,0)]) * 0.5 * dxi)
+              + nu * (vRightData[0] - 2.0 * v[IDX(Nx-1,0)] + v[IDX(Nx-2,0)])*dx2i
+              + nu * (v[IDX(Nx-1,1)] - 2.0 * v[IDX(Nx-1,0)] + vBottomData[Nx-1])*dy2i);
+              
+            vNext[IDX(0,Ny-1)] = v[IDX(0,Ny-1)] + dt*(                                //compute top left corner, access top and left
+                ( (s[IDX(1,Ny-1)] - sLeftData[Ny-1]) * 0.5 * dxi
+                 *(vTopData[0] - v[IDX(0,Ny-2)]) * 0.5 * dyi)
+              - ( (sTopData[0] - s[IDX(0,Ny-2)]) * 0.5 * dyi
+                 *(v[IDX(1,Ny-1)] - vLeftData[Ny-1]) * 0.5 * dxi)
+              + nu * (v[IDX(1,Ny-1)] - 2.0 * v[IDX(0,Ny-1)] + vLeftData[Ny-1])*dx2i
+              + nu * (vTopData[0] - 2.0 * v[IDX(0,Ny-1)] + v[IDX(0,Ny-2)])*dy2i);
+              
+            vNext[IDX(Nx-1,Ny-1)] = v[IDX(Nx-1,Ny-1)] + dt*(                      //compute top right corner, access top and right
+                ( (sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)]) * 0.5 * dxi
+                 *(vTopData[Nx-1] - v[IDX(Nx-1,Ny-2)]) * 0.5 * dyi)
+              - ( (sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]) * 0.5 * dyi
+                 *(vRightData[Ny-1] - v[IDX(Nx-2,Ny-1)]) * 0.5 * dxi)
+              + nu * (vRightData[Ny-1] - 2.0 * v[IDX(Nx-1,Ny-1)] + v[IDX(Nx-2,Ny-1)])*dx2i
+              + nu * (vTopData[Nx-1] - 2.0 * v[IDX(Nx-1,Ny-1)] + v[IDX(Nx-1,Ny-2)])*dy2i);
+              
+            //now for process edges
+            for (int i = 1; i < Nx - 1; ++i) {                                      //bottom row, needs access to bottom
+                vNext[IDX(i,0)] = v[IDX(i,0)] + dt*(
+                        ( (s[IDX(i+1,0)] - s[IDX(i-1,0)]) * 0.5 * dxi
+                         *(v[IDX(i,1)] - vBottomData[i]) * 0.5 * dyi)
+                      - ( (s[IDX(i,1)] - sBottomData[i]) * 0.5 * dyi
+                         *(v[IDX(i+1,0)] - v[IDX(i-1,0)]) * 0.5 * dxi)
+                      + nu * (v[IDX(i+1,0)] - 2.0 * v[IDX(i,0)] + v[IDX(i-1,0)])*dx2i
+                      + nu * (v[IDX(i,1)] - 2.0 * v[IDX(i,0)] + vBottomData[i])*dy2i);
+                  
+                vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)] + dt*(                                //top row, needs access to top
+                        ( (s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) * 0.5 * dxi
+                         *(vTopData[i] - v[IDX(i,Ny-2)]) * 0.5 * dyi)
+                      - ( (sTopData[i] - s[IDX(i,Ny-2)]) * 0.5 * dyi
+                         *(v[IDX(i+1,Ny-1)] - v[IDX(i-1,Ny-1)]) * 0.5 * dxi)
+                      + nu * (v[IDX(i+1,Ny-1)] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i-1,Ny-1)])*dx2i
+                      + nu * (vTopData[i] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i,Ny-2)])*dy2i);
+            }
+            
+            for (int j = 1; j < Ny - 1; ++j) {                                          //left column, needs access to left
+                vNext[IDX(0,j)] = v[IDX(0,j)] + dt*(
+                        ( (s[IDX(1,j)] - sLeftData[j]) * 0.5 * dxi
+                         *(v[IDX(0,j+1)] - v[IDX(0,j-1)]) * 0.5 * dyi)
+                      - ( (s[IDX(0,j+1)] - s[IDX(0,j-1)]) * 0.5 * dyi
+                         *(v[IDX(1,j)] - vLeftData[j]) * 0.5 * dxi)
+                      + nu * (v[IDX(1,j)] - 2.0 * v[IDX(0,j)] + vLeftData[j])*dx2i
+                      + nu * (v[IDX(0,j+1)] - 2.0 * v[IDX(0,j)] + v[IDX(0,j-1)])*dy2i);
+                      
+                vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)] + dt*(                             //right column, needs access to right
+                        ( (sRightData[j] - s[IDX(Nx-2,j)]) * 0.5 * dxi
+                         *(v[IDX(Nx-2,j+1)] - v[IDX(Nx-2,j-1)]) * 0.5 * dyi)
+                      - ( (s[IDX(Nx-2,j+1)] - s[IDX(Nx-2,j-1)]) * 0.5 * dyi
+                         *(vRightData[j] - v[IDX(Nx-2,j)]) * 0.5 * dxi)
+                      + nu * (vRightData[j] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-2,j)])*dx2i
+                      + nu * (v[IDX(Nx-1,j+1)] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-1,j-1)])*dy2i);
+            }
         }
     }
     
@@ -744,12 +872,20 @@ void LidDrivenCavity::Advance()
             vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)];
         }
     }
-
     
-    //check for deadlock
-    cout << "DEADLOCK NOPE!" << endl;
-    MPI_Barrier(MPI_COMM_WORLD);
-    exit(-1);
+    //compute interior points of each domain
+    for (int i = 1; i < Nx - 1; ++i) {
+        for (int j = 1; j < Ny - 1; ++j) {
+            vNext[IDX(i,j)] = v[IDX(i,j)] + dt*(
+                ( (s[IDX(i+1,j)] - s[IDX(i-1,j)]) * 0.5 * dxi
+                 *(v[IDX(i,j+1)] - v[IDX(i,j-1)]) * 0.5 * dyi)
+              - ( (s[IDX(i,j+1)] - s[IDX(i,j-1)]) * 0.5 * dyi
+                 *(v[IDX(i+1,j)] - v[IDX(i-1,j)]) * 0.5 * dxi)
+              + nu * (v[IDX(i+1,j)] - 2.0 * v[IDX(i,j)] + v[IDX(i-1,j)])*dx2i
+              + nu * (v[IDX(i,j+1)] - 2.0 * v[IDX(i,j)] + v[IDX(i,j-1)])*dy2i);
+        }
+    }
+    
     // Solve Poisson problem
     cg->Solve(vNext, s);
 }
