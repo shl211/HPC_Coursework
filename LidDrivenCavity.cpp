@@ -442,7 +442,7 @@ void LidDrivenCavity::Advance()
                         + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
         }
     }
-    else if (Nx > 1 & Ny == 1 * (topRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL)) {
+    else if (Nx > 1 & Ny == 1 & (topRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL)) {
     //if domain is row vector and not on boundary edge, then compute data between left and right corners
         for(int i = 1; i < Nx - 1; ++i) {
             v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])        //row accesses bottom and top data
@@ -481,6 +481,16 @@ void LidDrivenCavity::Advance()
     }
     
     //send vorticity data on edge of each domain to adjacent grid asap    
+    //for left and right columns, no need to extract data first as already in column major
+    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
+    if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
+        MPI_Send(v+Ny*(Nx-1),Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
+    }
+    //s denotes start of leftmost column
+    if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
+        MPI_Send(v,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
+    }
+    
     //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
     //similar logic for bottom, left and right
     //for rows, need to extract data first
@@ -494,16 +504,6 @@ void LidDrivenCavity::Advance()
         MPI_Send(vBottomData, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid);            //tag = 1 -> streamfunction data sent down
     }
     
-    //for left and right columns, no need to extract data first as already in column major
-    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
-    if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
-        MPI_Send(v+Ny*(Nx-1),Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
-    }
-    //s denotes start of leftmost column
-    if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
-        MPI_Send(v,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
-    }
-    
     //compute rest of data that doesn't require data from other processes i.e. interior points of domain
     if(Nx > 2 && Ny > 2) {  //for cases where either Nx Ny is 2 or less, above already computes all grid points
         for (int i = 1; i < Nx - 1; ++i) {
@@ -515,13 +515,6 @@ void LidDrivenCavity::Advance()
     }
     
     //receive the vorticity data
-    //receive top and bottom vorticity data first
-    if(topRank != MPI_PROC_NULL) {               //all ranks but the top will receive vorticity data from above, tag 1
-        MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);
-    }
-    if(bottomRank != MPI_PROC_NULL) {                  //all ranks but the bottom will receive vorticity data from below, tag 0
-        MPI_Recv(vBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);
-    }
     //now receive left and right data
     if(leftRank != MPI_PROC_NULL) {               //all ranks but the left will receive vorticity data from left, tag 3
         MPI_Recv(vLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);
@@ -529,30 +522,27 @@ void LidDrivenCavity::Advance()
     if(rightRank != MPI_PROC_NULL) {               //all ranks but the right will receive vorticity data from right, tag 2
         MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
     }
+    //receive top and bottom vorticity data 
+    if(topRank != MPI_PROC_NULL) {               //all ranks but the top will receive vorticity data from above, tag 1
+        MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);
+    }
+    if(bottomRank != MPI_PROC_NULL) {                  //all ranks but the bottom will receive vorticity data from below, tag 0
+        MPI_Recv(vBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);
+    }
 
     // Time advance vorticity; leave boundary edges untouched
-    if(!boundaryDomain) {
-        
-        if(Nx == 1 & Ny == 1) {             //if domain is effectively a cell, need data from all surrounding data
-            
-            vNext[0] = v[0] + dt * (
+    //compute corners first
+    if(Nx == 1 & Ny == 1 & !boundaryDomain) {   //if domain effectively a cell, need data from all surrounding data
+        vNext[0] = v[0] + dt * (
                 ( (sRightData[0] - sLeftData[0]) * 0.5 * dxi
                  *(vTopData[0] - vBottomData[0]) * 0.5 * dyi)
                -( (sTopData[0] - sBottomData[0]) * 0.5 * dyi
                  *(vRightData[0] - vLeftData[0]) * 0.5 * dxi)
                + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
                + nu * (vTopData[0] - 2.0 * v[0] + vBottomData[0])*dy2i);
-        }
-        if(Nx == 1 & Ny != 1) {             //if domain is a column vector
-            
-            vNext[0] = v[0] + dt * (
-                ( (sRightData[0] - sLeftData[0]) * 0.5 * dxi
-                 *(v[1] - vBottomData[0]) * 0.5 * dyi)
-               -( (s[1] - sBottomData[0]) * 0.5 * dyi
-                 *(vRightData[0] - vLeftData[0]) * 0.5 * dxi)
-               + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
-               + nu * (v[1] - 2.0 * v[0] + vBottomData[0])*dy2i);         //bottom 'corner'
-               
+    }
+    else if (Nx == 1 & Ny != 1) {
+        if(topRank != MPI_PROC_NULL) {  //if process is at top of grid, BC will be imposed, so skip 
             vNext[Ny-1] = v[Ny-1] + dt * (
                 ( (sRightData[Ny-1] - sLeftData[Ny-1]) * 0.5 * dxi
                  *(vTopData[0] - v[Ny-2]) * 0.5 * dyi)
@@ -560,27 +550,31 @@ void LidDrivenCavity::Advance()
                  *(vRightData[Ny-1] - vLeftData[Ny-1]) * 0.5 * dxi)
                + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
                + nu * (vTopData[0] - 2.0 * v[0] + v[Ny-2])*dy2i);         //top 'corner'
-               
-            for(int j = 1; j < Ny - 1; ++j) {
-                vNext[j] = v[j] + dt*(            //for column, only need left and right proecss data
-                    ( (sRightData[j] - sLeftData[j]) * 0.5 * dxi
-                     *(v[j+1] - v[j-1]) * 0.5 * dyi)
-                  - ( (s[j+1] - s[j-1]) * 0.5 * dyi
-                     *(vRightData[j] - vLeftData[j]) * 0.5 * dxi)
-                  + nu * (vRightData[j] - 2.0 * v[j] + vLeftData[j])*dx2i
-                  + nu * (v[j+1] - 2.0 * v[j] + v[j-1])*dy2i);
-            }
+        }    
+        
+        if(bottomRank != MPI_PROC_NULL) {   //same logic for bottom
+        vNext[0] = v[0] + dt * (
+                ( (sRightData[0] - sLeftData[0]) * 0.5 * dxi
+                 *(v[1] - vBottomData[0]) * 0.5 * dyi)
+               -( (s[1] - sBottomData[0]) * 0.5 * dyi
+                 *(vRightData[0] - vLeftData[0]) * 0.5 * dxi)
+               + nu * (vRightData[0] - 2.0 * v[0] + vLeftData[0])*dx2i
+               + nu * (v[1] - 2.0 * v[0] + vBottomData[0])*dy2i);         //bottom 'corner'
+        }      
+    }
+    else if (Nx != 1 & Ny == 1) {
+            
+        if(leftRank != MPI_PROC_NULL) {
+            vNext[0] = v[0] + dt*(                                //left 'corner'
+                        ( (s[1] - sLeftData[0]) * 0.5 * dxi
+                         *(vTopData[0] - vBottomData[0]) * 0.5 * dyi)
+                      - ( (sTopData[0] - sBottomData[0]) * 0.5 * dyi
+                         *(v[1] - vLeftData[0]) * 0.5 * dxi)
+                      + nu * (v[1] - 2.0 * v[0] + vLeftData[0])*dx2i
+                      + nu * (vTopData[0] - 2.0 * v[0] + vBottomData[0])*dy2i);            
         }
         
-        if(Nx != 1 & Ny == 1) {         //if domain is a row vector
-            vNext[0] = v[0] + dt*(                                //left 'corner'
-                    ( (s[1] - sLeftData[0]) * 0.5 * dxi
-                     *(vTopData[0] - vBottomData[0]) * 0.5 * dyi)
-                  - ( (sTopData[0] - sBottomData[0]) * 0.5 * dyi
-                     *(v[1] - vLeftData[0]) * 0.5 * dxi)
-                  + nu * (v[1] - 2.0 * v[0] + vLeftData[0])*dx2i
-                  + nu * (vTopData[0] - 2.0 * v[0] + vBottomData[0])*dy2i);
-                  
+        if(rightRank != MPI_PROC_NULL) {      
             vNext[Nx-1] = v[Nx-1] + dt*(                    //right 'corner'
                 ( (sRightData[0] - s[Nx-2]) * 0.5 * dxi
                  *(vTopData[Nx-1] - vBottomData[Nx-1]) * 0.5 * dyi)
@@ -588,19 +582,10 @@ void LidDrivenCavity::Advance()
                  *(vRightData[0] - v[Nx-2]) * 0.5 * dxi)
               + nu * (vRightData[0] - 2.0 * v[Nx-1] + v[Nx-2])*dx2i
               + nu * (vTopData[Nx-1] - 2.0 * v[Nx-1] + vBottomData[Nx-1])*dy2i);
-              
-            for(int i = 0; i < Nx - 1; ++i) {
-                vNext[i] = v[i] + dt*(                //row needs access to top an bototm
-                    ( (s[i+1] - s[i-1]) * 0.5 * dxi
-                     *(vTopData[i] - vBottomData[i]) * 0.5 * dyi)
-                  - ( (sTopData[i] - sBottomData[i]) * 0.5 * dyi
-                     *(v[i+1] - v[i-1]) * 0.5 * dxi)
-                  + nu * (v[i+1] - 2.0 * v[i] + v[i-1])*dx2i
-                  + nu * (vTopData[i] - 2.0 * v[i] + vBottomData[i])*dy2i);
-            }
         }
-        
-        if(!(Nx == 1 | Ny == 1)){       //for all other process domain, do general case for borders
+    }
+    else {
+        if(bottomRank != MPI_PROC_NULL | leftRank != MPI_PROC_NULL) {
             vNext[IDX(0,0)] = v[IDX(0,0)] + dt*(                            //compute bottom left corner, access left and bottom
                 ( (s[IDX(1,0)] - sLeftData[0]) * 0.5 * dxi
                  *(v[IDX(0,1)] - vBottomData[0]) * 0.5 * dyi)
@@ -608,7 +593,9 @@ void LidDrivenCavity::Advance()
                 *(v[IDX(1,0)] - vLeftData[0]) * 0.5 * dxi)
                 + nu * (v[IDX(1,0)] - 2.0 * v[IDX(0,0)] + vLeftData[0])*dx2i
                 + nu * (v[IDX(0,1)] - 2.0 * v[IDX(0,0)] + vBottomData[0])*dy2i);
-                
+        }
+            
+        if(bottomRank != MPI_PROC_NULL | rightRank != MPI_PROC_NULL) {
             vNext[IDX(Nx-1,0)] = v[IDX(Nx-1,0)] + dt*(                            //compute bottom right corner, acess right and bottom
                 ( (sRightData[0] - s[IDX(Nx-2,0)]) * 0.5 * dxi
                  *(v[IDX(Nx-1,1)] - vBottomData[Nx-1]) * 0.5 * dyi)
@@ -616,7 +603,9 @@ void LidDrivenCavity::Advance()
                  *(vRightData[0] - v[IDX(Nx-2,0)]) * 0.5 * dxi)
               + nu * (vRightData[0] - 2.0 * v[IDX(Nx-1,0)] + v[IDX(Nx-2,0)])*dx2i
               + nu * (v[IDX(Nx-1,1)] - 2.0 * v[IDX(Nx-1,0)] + vBottomData[Nx-1])*dy2i);
+        }
               
+        if(topRank != MPI_PROC_NULL | leftRank != MPI_PROC_NULL) {
             vNext[IDX(0,Ny-1)] = v[IDX(0,Ny-1)] + dt*(                                //compute top left corner, access top and left
                 ( (s[IDX(1,Ny-1)] - sLeftData[Ny-1]) * 0.5 * dxi
                  *(vTopData[0] - v[IDX(0,Ny-2)]) * 0.5 * dyi)
@@ -624,7 +613,9 @@ void LidDrivenCavity::Advance()
                  *(v[IDX(1,Ny-1)] - vLeftData[Ny-1]) * 0.5 * dxi)
               + nu * (v[IDX(1,Ny-1)] - 2.0 * v[IDX(0,Ny-1)] + vLeftData[Ny-1])*dx2i
               + nu * (vTopData[0] - 2.0 * v[IDX(0,Ny-1)] + v[IDX(0,Ny-2)])*dy2i);
+        }
               
+        if(topRank != MPI_PROC_NULL | rightRank != MPI_PROC_NULL) {
             vNext[IDX(Nx-1,Ny-1)] = v[IDX(Nx-1,Ny-1)] + dt*(                      //compute top right corner, access top and right
                 ( (sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)]) * 0.5 * dxi
                  *(vTopData[Nx-1] - v[IDX(Nx-1,Ny-2)]) * 0.5 * dyi)
@@ -632,43 +623,69 @@ void LidDrivenCavity::Advance()
                  *(vRightData[Ny-1] - v[IDX(Nx-2,Ny-1)]) * 0.5 * dxi)
               + nu * (vRightData[Ny-1] - 2.0 * v[IDX(Nx-1,Ny-1)] + v[IDX(Nx-2,Ny-1)])*dx2i
               + nu * (vTopData[Nx-1] - 2.0 * v[IDX(Nx-1,Ny-1)] + v[IDX(Nx-1,Ny-2)])*dy2i);
-              
-            //now for process edges
-            for (int i = 1; i < Nx - 1; ++i) {                                      //bottom row, needs access to bottom
-                vNext[IDX(i,0)] = v[IDX(i,0)] + dt*(
-                        ( (s[IDX(i+1,0)] - s[IDX(i-1,0)]) * 0.5 * dxi
-                         *(v[IDX(i,1)] - vBottomData[i]) * 0.5 * dyi)
-                      - ( (s[IDX(i,1)] - sBottomData[i]) * 0.5 * dyi
-                         *(v[IDX(i+1,0)] - v[IDX(i-1,0)]) * 0.5 * dxi)
-                      + nu * (v[IDX(i+1,0)] - 2.0 * v[IDX(i,0)] + v[IDX(i-1,0)])*dx2i
-                      + nu * (v[IDX(i,1)] - 2.0 * v[IDX(i,0)] + vBottomData[i])*dy2i);
+        }
+    }
+    
+    //now process data along edges
+    if(Nx == 1 & Ny > 1 & (leftRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) {
+        //if column vector, don't need to do for left or right as BC already imposed
+        for(int j = 1; j < Ny - 1; ++j) {
+            vNext[j] = v[j] + dt*(            //for column, only need left and right proecss data
+                ( (sRightData[j] - sLeftData[j]) * 0.5 * dxi
+                    *(v[j+1] - v[j-1]) * 0.5 * dyi)
+                - ( (s[j+1] - s[j-1]) * 0.5 * dyi
+                    *(vRightData[j] - vLeftData[j]) * 0.5 * dxi)
+                + nu * (vRightData[j] - 2.0 * v[j] + vLeftData[j])*dx2i
+                + nu * (v[j+1] - 2.0 * v[j] + v[j-1])*dy2i);
+        }
+    }
+    else if (Nx > 1 & Ny == 1 & (topRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL)) {
+         //if row vector, don't need to do for top or bottom as BC already imposed
+        for(int i = 0; i < Nx - 1; ++i) {
+            vNext[i] = v[i] + dt*(                //row needs access to top an bototm
+                ( (s[i+1] - s[i-1]) * 0.5 * dxi
+                    *(vTopData[i] - vBottomData[i]) * 0.5 * dyi)
+                - ( (sTopData[i] - sBottomData[i]) * 0.5 * dyi
+                    *(v[i+1] - v[i-1]) * 0.5 * dxi)
+                + nu * (v[i+1] - 2.0 * v[i] + v[i-1])*dx2i
+                + nu * (vTopData[i] - 2.0 * v[i] + vBottomData[i])*dy2i);
+        }
+    }
+    else{//for all other cases, process only needs to acces one dataset
+        for (int i = 1; i < Nx - 1; ++i) {                                      //bottom row, needs access to bottom
+            vNext[IDX(i,0)] = v[IDX(i,0)] + dt*(
+                    ( (s[IDX(i+1,0)] - s[IDX(i-1,0)]) * 0.5 * dxi
+                        *(v[IDX(i,1)] - vBottomData[i]) * 0.5 * dyi)
+                    - ( (s[IDX(i,1)] - sBottomData[i]) * 0.5 * dyi
+                        *(v[IDX(i+1,0)] - v[IDX(i-1,0)]) * 0.5 * dxi)
+                    + nu * (v[IDX(i+1,0)] - 2.0 * v[IDX(i,0)] + v[IDX(i-1,0)])*dx2i
+                    + nu * (v[IDX(i,1)] - 2.0 * v[IDX(i,0)] + vBottomData[i])*dy2i);
                   
-                vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)] + dt*(                                //top row, needs access to top
-                        ( (s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) * 0.5 * dxi
-                         *(vTopData[i] - v[IDX(i,Ny-2)]) * 0.5 * dyi)
-                      - ( (sTopData[i] - s[IDX(i,Ny-2)]) * 0.5 * dyi
-                         *(v[IDX(i+1,Ny-1)] - v[IDX(i-1,Ny-1)]) * 0.5 * dxi)
-                      + nu * (v[IDX(i+1,Ny-1)] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i-1,Ny-1)])*dx2i
-                      + nu * (vTopData[i] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i,Ny-2)])*dy2i);
-            }
+            vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)] + dt*(                                //top row, needs access to top
+                    ( (s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) * 0.5 * dxi
+                        *(vTopData[i] - v[IDX(i,Ny-2)]) * 0.5 * dyi)
+                    - ( (sTopData[i] - s[IDX(i,Ny-2)]) * 0.5 * dyi
+                        *(v[IDX(i+1,Ny-1)] - v[IDX(i-1,Ny-1)]) * 0.5 * dxi)
+                    + nu * (v[IDX(i+1,Ny-1)] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i-1,Ny-1)])*dx2i
+                    + nu * (vTopData[i] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i,Ny-2)])*dy2i);
+        }
             
-            for (int j = 1; j < Ny - 1; ++j) {                                          //left column, needs access to left
-                vNext[IDX(0,j)] = v[IDX(0,j)] + dt*(
-                        ( (s[IDX(1,j)] - sLeftData[j]) * 0.5 * dxi
-                         *(v[IDX(0,j+1)] - v[IDX(0,j-1)]) * 0.5 * dyi)
-                      - ( (s[IDX(0,j+1)] - s[IDX(0,j-1)]) * 0.5 * dyi
-                         *(v[IDX(1,j)] - vLeftData[j]) * 0.5 * dxi)
-                      + nu * (v[IDX(1,j)] - 2.0 * v[IDX(0,j)] + vLeftData[j])*dx2i
-                      + nu * (v[IDX(0,j+1)] - 2.0 * v[IDX(0,j)] + v[IDX(0,j-1)])*dy2i);
+        for (int j = 1; j < Ny - 1; ++j) {                                          //left column, needs access to left
+            vNext[IDX(0,j)] = v[IDX(0,j)] + dt*(
+                ( (s[IDX(1,j)] - sLeftData[j]) * 0.5 * dxi
+                    *(v[IDX(0,j+1)] - v[IDX(0,j-1)]) * 0.5 * dyi)
+                - ( (s[IDX(0,j+1)] - s[IDX(0,j-1)]) * 0.5 * dyi
+                    *(v[IDX(1,j)] - vLeftData[j]) * 0.5 * dxi)
+                + nu * (v[IDX(1,j)] - 2.0 * v[IDX(0,j)] + vLeftData[j])*dx2i
+                + nu * (v[IDX(0,j+1)] - 2.0 * v[IDX(0,j)] + v[IDX(0,j-1)])*dy2i);
                       
-                vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)] + dt*(                             //right column, needs access to right
-                        ( (sRightData[j] - s[IDX(Nx-2,j)]) * 0.5 * dxi
-                         *(v[IDX(Nx-2,j+1)] - v[IDX(Nx-2,j-1)]) * 0.5 * dyi)
-                      - ( (s[IDX(Nx-2,j+1)] - s[IDX(Nx-2,j-1)]) * 0.5 * dyi
-                         *(vRightData[j] - v[IDX(Nx-2,j)]) * 0.5 * dxi)
-                      + nu * (vRightData[j] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-2,j)])*dx2i
-                      + nu * (v[IDX(Nx-1,j+1)] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-1,j-1)])*dy2i);
-            }
+            vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)] + dt*(                             //right column, needs access to right
+                ( (sRightData[j] - s[IDX(Nx-2,j)]) * 0.5 * dxi
+                *(v[IDX(Nx-2,j+1)] - v[IDX(Nx-2,j-1)]) * 0.5 * dyi)
+                - ( (s[IDX(Nx-2,j+1)] - s[IDX(Nx-2,j-1)]) * 0.5 * dyi
+                *(vRightData[j] - v[IDX(Nx-2,j)]) * 0.5 * dxi)
+                + nu * (vRightData[j] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-2,j)])*dx2i
+                + nu * (v[IDX(Nx-1,j+1)] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-1,j-1)])*dy2i);
         }
     }
     
