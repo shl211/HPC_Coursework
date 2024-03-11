@@ -38,6 +38,11 @@ LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int coord
     MPI_Cart_shift(comm_col_grid,0,1,&topRank,&bottomRank);
     MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);
     
+    if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL))
+        boundaryDomain = false;
+    else
+        boundaryDomain = true;      //check whether the current process is on the edge of the grid/cavity    
+    
     //cout << "Coord (" << coords0 << "," << coords1 << ") has row rank " << rowRank << " and left is " << leftRank << " and right is "<< right << endl;
 }
 
@@ -371,7 +376,7 @@ void LidDrivenCavity::Advance()
     }
 
     //compute interior vorticity for non-boundary processes, for the borders of those processes which require other data to be acceessed
-    if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL)) {
+    if(!boundaryDomain) {
 
         //for computations that require data from other processes
         //corners first
@@ -698,7 +703,8 @@ void LidDrivenCavity::Advance()
         MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
     }
 
-    // Time advance vorticity
+    // Time advance vorticity; leave boundary edges untouched
+    
     for (int i = 1; i < Nx - 1; ++i) {
         for (int j = 1; j < Ny - 1; ++j) {
             v[IDX(i,j)] = v[IDX(i,j)] + dt*(

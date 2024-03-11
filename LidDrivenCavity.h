@@ -200,6 +200,8 @@ private:
     int rightRank;///<rank of process to right of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to right
     int bottomRank;///<rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
 
+    bool boundaryDomain; ///<denotes whether the process is at the boundary of the CCartesian grid
+
     double* vTopData = nullptr;              ///<Buffer to store the data 1 row above top of local grid
     double* vLeftData = nullptr;             ///<Buffer to store the data 1 column to left of local grid
     double* vRightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
