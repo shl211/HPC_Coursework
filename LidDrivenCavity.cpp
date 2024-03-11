@@ -129,6 +129,7 @@ void LidDrivenCavity::Initialise()
     CleanUp();                                                      //deallocate memory
 
     v   = new double[Npts]();                                       //array denoting vorticity, allocated with zero initial condition
+    vNext = new double[Npts]();                                     //array denoting voriticty at next time step
     s   = new double[Npts]();                                       //array denoting streamfunction, allocated with zero initial condition
     tmp = new double[Npts]();                                       //temporay array, zeros
     cg  = new SolverCG(Nx, Ny, dx, dy);                             //create solver
@@ -168,7 +169,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         for (int j = 0; j < Ny; ++j)                                //print data in columns (i.e.keep x location constant, and go down y location)
         {
             k = IDX(i, j);                                                  //denotes location of matrix element (i,j) in memory
-            f << i * dx << " " << j * dy << " " << v[k] <<  " " << s[k]     //on each line in file, print the grid location (x,y), vorticity...
+            f << i * dx << " " << j * dy << " " << vNext[k] <<  " " << s[k] //on each line in file, print the grid location (x,y), vorticity...
               << " " << u0[k] << " " << u1[k] << std::endl;                 //streamfunction, x velocity, y velocity at that grid location
         }
         f << std::endl;                                                     //After printing all (y) data for column in grid, proceed to next column...
@@ -201,6 +202,7 @@ void LidDrivenCavity::CleanUp()
 {
     if (v) {                //if array v is not null pointer, then deallocate arrays and solverCG 
         delete[] v;
+        delete[] vNext;
         delete[] s;
         delete[] tmp;
         delete cg;
@@ -249,7 +251,7 @@ void LidDrivenCavity::Advance()
     // Time advance vorticity
     for (int i = 1; i < Nx - 1; ++i) {
         for (int j = 1; j < Ny - 1; ++j) {
-            v[IDX(i,j)] = v[IDX(i,j)] + dt*(
+            vNext[IDX(i,j)] = v[IDX(i,j)] + dt*(
                 ( (s[IDX(i+1,j)] - s[IDX(i-1,j)]) * 0.5 * dxi
                  *(v[IDX(i,j+1)] - v[IDX(i,j-1)]) * 0.5 * dyi)
               - ( (s[IDX(i,j+1)] - s[IDX(i,j-1)]) * 0.5 * dyi
@@ -259,6 +261,20 @@ void LidDrivenCavity::Advance()
         }
     }
     
+    // Boundary node vorticity at next time step
+    for (int i = 1; i < Nx-1; ++i) {
+        // bottom
+        vNext[IDX(i,0)]    = v[IDX(i,0)];
+        // top
+        vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)];
+    }
+    for (int j = 1; j < Ny-1; ++j) {
+        // left
+        vNext[IDX(0,j)]    = v[IDX(0,j)];
+        // right
+        vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)];
+    }
+    
     // Solve Poisson problem
-    cg->Solve(v, s);
+    cg->Solve(vNext, s);
 }

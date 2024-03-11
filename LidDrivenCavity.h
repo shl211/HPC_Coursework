@@ -166,6 +166,7 @@ public:
 
 private:
     double* v   = nullptr;                  ///<Pointer to array describing vorticity
+    double* vNext = nullptr;                ///<Pointer to array describing vorticity at next time step
     double* s   = nullptr;                  ///<Pointer to array describing streamfunction
     double* tmp = nullptr;                  ///<Temporary array
 
