@@ -273,14 +273,14 @@ void LidDrivenCavity::Advance()
     //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
     //similar logic for bottom, left and right
     //for rows, need to extract data first
-    cblas_dcopy(Nx, s, Ny, vTopData, 1);    //store only top row of streamfunction data into vTopData, Nx data to send upwards
-    cblas_dcopy(Nx, s+Ny-1, Ny, vBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent, Nx data to send
+    cblas_dcopy(Nx, s, Ny, sTopData, 1);    //store only top row of streamfunction data into vTopData, Nx data to send upwards
+    cblas_dcopy(Nx, s+Ny, Ny, sBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent, Nx data to send
     
     if(topRank != MPI_PROC_NULL) {               //send data upwards unless at teh top boundary
-        MPI_Send(vTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
+        MPI_Send(sTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
     }
     if(bottomRank != MPI_PROC_NULL){                   //send data downwards unlsss at teh bottom bounday
-        MPI_Send(vBottomData, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid);            //tag = 1 -> streamfunction data sent down
+        MPI_Send(sBottomData, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid);            //tag = 1 -> streamfunction data sent down
     }
     
     //for left and right columns, no need to extract data first as already in column major
@@ -648,8 +648,29 @@ void LidDrivenCavity::Advance()
         }
     }//----------------------------------------------------------------------------------------------------------------//
     
-    //once the boundaries of each local domain has been computed, send boundary vorticity data to adjacent processes in advance
-    //TBC
+    //send vorticity data on edge of each domain to adjacent grid asap    
+    //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
+    //similar logic for bottom, left and right
+    //for rows, need to extract data first
+    cblas_dcopy(Nx, v, Ny, vTopData, 1);    //store only top row of streamfunction data into vTopData, Nx data to send upwards
+    cblas_dcopy(Nx, v+Ny, Ny, vBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent, Nx data to send
+    
+    if(topRank != MPI_PROC_NULL) {               //send data upwards unless at teh top boundary
+        MPI_Send(vTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
+    }
+    if(bottomRank != MPI_PROC_NULL){                   //send data downwards unlsss at teh bottom bounday
+        MPI_Send(vBottomData, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid);            //tag = 1 -> streamfunction data sent down
+    }
+    
+    //for left and right columns, no need to extract data first as already in column major
+    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
+    if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
+        MPI_Send(v+Ny*(Nx-1),Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
+    }
+    //s denotes start of leftmost column
+    if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
+        MPI_Send(v,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
+    }
     
     //compute rest of data that doesn't require data from other processes i.e. interior points of domain
     if(Nx > 2 && Ny > 2) {  //for cases where either Nx Ny is 2 or less, above already computes all grid points
@@ -661,9 +682,21 @@ void LidDrivenCavity::Advance()
         }
     }
     
-    
-    
-    //receive the data
+    //receive the vorticity data
+    //receive top and bottom vorticity data first
+    if(topRank != MPI_PROC_NULL) {               //all ranks but the top will receive vorticity data from above, tag 1
+        MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);
+    }
+    if(bottomRank != MPI_PROC_NULL) {                  //all ranks but the bottom will receive vorticity data from below, tag 0
+        MPI_Recv(vBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);
+    }
+    //now receive left and right data
+    if(leftRank != MPI_PROC_NULL) {               //all ranks but the left will receive vorticity data from left, tag 3
+        MPI_Recv(vLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);
+    }
+    if(rightRank != MPI_PROC_NULL) {               //all ranks but the right will receive vorticity data from right, tag 2
+        MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
+    }
 
     // Time advance vorticity
     for (int i = 1; i < Nx - 1; ++i) {
