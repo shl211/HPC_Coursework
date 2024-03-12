@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
     yDomainSize = vm["Ny"].as<int>() / p;
     
     //first assign for x dimension
-    rem = vm["Nx"].as<int>() % p;                   //remainder, denotes how many processes need an extra row in domain
+    rem = vm["Ny"].as<int>() % p;                   //remainder, denotes how many processes need an extra column in domain
     
     if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
         yDomainSize++;
@@ -130,7 +130,7 @@ int main(int argc, char* argv[])
     }
     
     //same for y dimension
-    rem = vm["Ny"].as<int>() % p;
+    rem = vm["Nx"].as<int>() % p;
         
     if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
         xDomainSize++;
