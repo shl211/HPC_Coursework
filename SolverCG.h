@@ -17,8 +17,10 @@ public:
      * @param[in] pNy   Number of grid points in y direction
      * @param[in] pdx   Grid spacing in x direction, should satisfy pdx = Lx/(pNx - 1) where Lx is domain length in x direction
      * @param[in] pdy   Grid spacing in y direction, should satisfy pdy = Ly/(pNy - 1) where Ly is domain length in y direction
+     * @param[in] rowGrid   MPI communicator for the process row in Cartesian topology grid
+     * @param[in] colGrid   MPI communicator for the process column in Cartesian topology grid
      */
-    SolverCG(int pNx, int pNy, double pdx, double pdy);
+    SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, MPI_Comm &colGrid);
     
     /**
      * @brief Destructor to deallocate memory
@@ -66,6 +68,21 @@ private:
     double* p;      ///<Variable for preconditioned conjugate gradient solver
     double* z;      ///<Variable for preconditioned conjugate gradient solver
     double* t;      ///<Variable for preconditioned conjugate gradient solver
+
+    MPI_Comm comm_row_grid;                 ///<MPI communicator for the process row in Cartesian topology grid
+    MPI_Comm comm_col_grid;                 ///<MPI communicator for the process column in Cartesian topology grid
+    int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
+    int globalNx;                               ///<global Nx
+    int globalNy;                               ///<global Ny
+
+    int rowRank;///<rank of current process in comm_row_grid
+    int colRank;///<rank of current process in comm_col_grid
+    int topRank;///<rank of process above current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing above
+    int leftRank;///<rank of process to left of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to left
+    int rightRank;///<rank of process to right of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to right
+    int bottomRank;///<rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
+
+    bool boundaryDomain; ///<denotes whether the process is at the boundary of the Cartesian grid
 
     /**
      * @brief Applies the second-order central-difference discretisation of operator \f$ -\nabla^2 \f$ such that \f$ -\nabla^2 p = t \f$

@@ -161,7 +161,7 @@ void LidDrivenCavity::Initialise()
     vNext = new double[Npts]();         //next time step
     s   = new double[Npts]();                                       //array denoting streamfunction, allocated with zero initial condition
     tmp = new double[Npts]();                                       //temporay array, zeros
-    cg  = new SolverCG(Nx, Ny, dx, dy);                             //create solver
+    cg  = new SolverCG(Nx, Ny, dx, dy,comm_row_grid,comm_col_grid);                             //create solver
     
     vTopData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
     vBottomData = new double[Nx]();

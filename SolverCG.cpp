@@ -4,6 +4,7 @@
 using namespace std;
 
 #include <cblas.h>
+#include <mpi.h>
 
 #include "SolverCG.h"
 
@@ -14,7 +15,7 @@ using namespace std;
  */
 #define IDX(I,J) ((J)*Nx + (I))                     //define a new operation to improve computation?
 
-SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy)
+SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, MPI_Comm &colGrid)
 {
     dx = pdx;
     dy = pdy;
@@ -25,6 +26,24 @@ SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy)
     p = new double[n];
     z = new double[n];
     t = new double[n];
+    
+    //MPI communication stuff
+    comm_row_grid = rowGrid;
+    comm_col_grid = colGrid;
+    MPI_Comm_size(comm_row_grid,&size);     //get size of communicator
+
+    //compute ranks along the row communciator and along teh column communicator
+    MPI_Comm_rank(comm_row_grid, &rowRank); 
+    MPI_Comm_rank(comm_col_grid, &colRank);
+
+    //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
+    MPI_Cart_shift(comm_col_grid,0,1,&topRank,&bottomRank);
+    MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);
+    
+    if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL))
+        boundaryDomain = false;
+    else
+        boundaryDomain = true;      //check whether the current process is on the edge of the grid/cavity    
 }
 
 SolverCG::~SolverCG()
@@ -137,25 +156,94 @@ void SolverCG::Precondition(double* in, double* out) {
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;                                //optimised code, compute and store 1/(dx)^2 and 1/(dy)^2
     double factor = 2.0*(dx2i + dy2i);                      //precondition will involve dividing all terms by 2(1/dx/dx + 1/dy/dy)
+    
+    //first do process corners
+    if( leftRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL) {//if process is on the left or bottom, impose BC on bottom left corner 
+        out[0] = in[0];
+    }
+    else {//otherwise, precondition
+        out[0] = in[0]/factor;
+    }
+    
+    if( leftRank == MPI_PROC_NULL | topRank == MPI_PROC_NULL) { //if process is on left ro top, impose BC on top left corner
+        out[IDX(0,Ny-1)] = in[IDX(0,Ny-1)];
+    }
+    else{
+        out[IDX(0,Ny-1)] = in[IDX(0,Ny-1)]/factor;
+    }
+    
+    if( rightRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL) {//if process is on right or bottom, impose BC on bottom right corner
+        out[IDX(Nx-1,0)] = in[IDX(Nx-1,0)];
+    }
+    else{
+        out[IDX(Nx-1,0)] = in[IDX(Nx-1,0)]/factor;        
+    }    
+    
+    if(rightRank == MPI_PROC_NULL | topRank == MPI_PROC_NULL) {//if process is on right or top, impose BC on top right corner
+        out[IDX(Nx-1,Ny-1)] = in[IDX(Nx-1,Ny-1)];
+    }
+    else{
+        out[IDX(Nx-1,Ny-1)] = in[IDX(Nx-1,Ny-1)]/factor;
+    }
+    
+    //now compute for process edges
+    if( leftRank != MPI_PROC_NULL) {        //if process not on left boundary, precodnition LHS, otherwise maintain same BC
+        for(j = 1; j < Ny-1; ++j) {
+            out[IDX(0,j)] = in[IDX(0,j)]/factor;
+        }
+    }
+    else {
+        for(j = 1; j < Ny-1; ++j) {
+            out[IDX(0,j)] = in[IDX(0,j)];
+        }
+    }
+    
+    if(rightRank != MPI_PROC_NULL) {//if process not on right boundary, precodnition RHS, otherwise maintain same BC
+        for(j = 1; j < Ny - 1; ++j) {
+            out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)]/factor;
+        }
+    }
+    else {
+        for(j = 1; j < Ny - 1; ++j) {
+            out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)];
+        }
+    }
+    
+    if(bottomRank != MPI_PROC_NULL) {   //if process not on bottom boundary, precodntion bottom row, otherwise maintain same BC
+        for(i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,0)] = in[IDX(i,0)]/factor;
+        }
+    }
+    else {
+         for(i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,0)] = in[IDX(i,0)];
+        }
+    }
+    
+    if(topRank != MPI_PROC_NULL) {   //if process not on top boundary, precodntion top row, otherwise maintain same BC
+        for(i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)]/factor;
+        }
+    }
+    else {
+         for(i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)];
+        }
+    }
+    
+    //precondition all other interior points
     for (i = 1; i < Nx - 1; ++i) {
         for (j = 1; j < Ny - 1; ++j) {                  
             out[IDX(i,j)] = in[IDX(i,j)]/factor;            //apply precondition, reduce condition number
         }
     }
-    //Dividing is time consuming, so for boundaries, which will be overwritten by ImposeBC, no need to perform this operation
-    for (i = 0; i < Nx; ++i) {                              //maintain same boundary conditions
-        out[IDX(i, 0)] = in[IDX(i,0)];                      //bottom
-        out[IDX(i, Ny-1)] = in[IDX(i, Ny-1)];               //top
-    }
-
-    for (j = 0; j < Ny; ++j) {
-        out[IDX(0, j)] = in[IDX(0, j)];                     //left
-        out[IDX(Nx - 1, j)] = in[IDX(Nx - 1, j)];           //right
-    }
 }
 
 void SolverCG::ImposeBC(double* inout) {
-        // Boundaries
+        
+    
+    
+    // Boundaries
     for (int i = 0; i < Nx; ++i) {
         inout[IDX(i, 0)] = 0.0;                         //zero BC on bottom surface
         inout[IDX(i, Ny-1)] = 0.0;                      //zero BC on top surface
