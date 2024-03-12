@@ -280,8 +280,8 @@ void LidDrivenCavity::Advance()
     //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
     //similar logic for bottom, left and right
     //for rows, need to extract data first
-    cblas_dcopy(Nx, s, Ny, sTopData, 1);    //store only top row of streamfunction data into vTopData, Nx data to send upwards
-    cblas_dcopy(Nx, s+Ny, Ny, sBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent, Nx data to send
+    cblas_dcopy(Nx, s, Ny, sBottomData, 1);    //store only bottom row of streamfunction data into sBottomData, Nx data to send down
+    cblas_dcopy(Nx, s+Ny-1, Ny, sTopData, 1);    //store only top row of streamfunction data into sTopData to be sent, Nx data to send up
     
     if(topRank != MPI_PROC_NULL) {               //send data upwards unless at teh top boundary
         MPI_Send(sTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
@@ -291,13 +291,13 @@ void LidDrivenCavity::Advance()
     }
     
     //for left and right columns, no need to extract data first as already in column major
-    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
-    if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
-        MPI_Send(s+Ny*(Nx-1),Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
-    }
     //s denotes start of leftmost column
+    if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
+        MPI_Send(s,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
+    }
+    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
     if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
-        MPI_Send(s,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
+        MPI_Send(s+Ny*(Nx-1),Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
     }
     
     double dxi  = 1.0/dx;
@@ -482,20 +482,20 @@ void LidDrivenCavity::Advance()
     
     //send vorticity data on edge of each domain to adjacent grid asap    
     //for left and right columns, no need to extract data first as already in column major
-    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
+    //v denotes start of leftmost column
     if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
-        MPI_Send(v+Ny*(Nx-1),Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
+        MPI_Send(v,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
     }
-    //s denotes start of leftmost column
+    //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
     if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
-        MPI_Send(v,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
+        MPI_Send(v+Ny*(Nx-1),Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
     }
     
     //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
     //similar logic for bottom, left and right
     //for rows, need to extract data first
-    cblas_dcopy(Nx, v, Ny, vTopData, 1);    //store only top row of streamfunction data into vTopData, Nx data to send upwards
-    cblas_dcopy(Nx, v+Ny, Ny, vBottomData, 1);    //store only bottom row of streamfunction data into vBottomData to be sent, Nx data to send
+    cblas_dcopy(Nx, v, Ny, vBottomData, 1);    //store only bototm row of vorticity data into vBottomData, Nx data to send downwards
+    cblas_dcopy(Nx, v+Ny-1, Ny, vTopData, 1);    //store only top row of vorticity data into vTopData to be sent, Nx data to send up
     
     if(topRank != MPI_PROC_NULL) {               //send data upwards unless at teh top boundary
         MPI_Send(vTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
