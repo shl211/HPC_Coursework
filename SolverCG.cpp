@@ -29,6 +29,8 @@ SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, M
     
     leftData = new double[Ny];
     rightData = new double[Ny];
+    tempLeft = new double[Ny];
+    tempRight = new double[Ny];
     topData = new double[Nx];
     bottomData = new double[Nx];            //data storage for data from other processes
     
@@ -42,8 +44,8 @@ SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, M
     MPI_Comm_rank(comm_col_grid, &colRank);
 
     //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
-    MPI_Cart_shift(comm_col_grid,0,1,&topRank,&bottomRank);
-    MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);
+    MPI_Cart_shift(comm_col_grid,0,1,&bottomRank,&topRank);//from bottom to top
+    MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);//from left to rigth
     
     if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL))
         boundaryDomain = false;
@@ -62,6 +64,9 @@ SolverCG::~SolverCG()
     delete[] rightData;
     delete[] topData;
     delete[] bottomData;
+
+    delete[] tempLeft;//buffers for sending data
+    delete[] tempRight;
 }
 
 //getter functions for testing purposes
@@ -101,12 +106,7 @@ void SolverCG::Solve(double* b, double* x) {
     eps = cblas_dnrm2(n, b, 1);                     //if 2-norm of b is lower than tolerance squared, then b practically zero
 
     //need to compute sum of error norms across all process for comparison, don't use local
-    if(size == 1) {
-        globalEps = eps;//special case of 1 processor
-    }
-    else {
-        MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    }
+    MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     
     if (globalEps < tol*tol) {                        
         std::fill(x, x+n, 0.0);                     //hence solution x is practically 0, output the 2-norm and exit function
@@ -122,40 +122,33 @@ void SolverCG::Solve(double* b, double* x) {
     ImposeBC(r);                                    //apply zeros to edges
 
     cblas_daxpy(n, -1.0, t, 1, r, 1);               //r=r-t (i.e. r = b - Ax) gives first step of conjugate gradient algorithm
-    
     Precondition(r, z);                             //Precondition the problem, preconditioned matrix in z
     cblas_dcopy(n, z, 1, p, 1);                     // p_0 = z_0 (where z_0 is the preconditioned version of r_0)
-    
+
     k = 0;                                          //initialise iteration counter
     
     do {
         k++;
-        
-        ApplyOperator(p, t);                        //compute -nabla^2 p and store in t (effectively A*p_k)
-   
+
+        ApplyOperator(p, t);                       //compute -nabla^2 p and store in t (effectively A*p_k)
+
         alphaDen = cblas_ddot(n, t, 1, p, 1);          // alpha = p_k^T*A*p_k
         alphaNum = cblas_ddot(n, r, 1, z, 1);         // compute alpha_k = (r_k^T*r_k) / (p_k^T*A*p_k)
         betaDen  = cblas_ddot(n, r, 1, z, 1);          // z_k^T*r_k (for later in the algorithm)
-        
-        if(size == 1){
-            globalAlpha = alphaNum/alphaDen;       //for case of 1 processor
-        }
-        else {
-            MPI_Allreduce(&globalAlphaTemp,&alphaDen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);//sum up local p_k^T*A*p_k, denosminatot which is a dot product
-            MPI_Allreduce(&globalAlpha,&alphaNum, 1, MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);//sum up local numerator of alpha, dot product
-            globalAlpha = globalAlpha/globalAlphaTemp;    //compute actual alpha
-        }
-        //issue with dot product of transpose -> HOW???        
+
+        MPI_Allreduce(&alphaDen,&globalAlphaTemp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);//sum up local p_k^T*A*p_k, denosminatot which is a dot product
+        MPI_Allreduce(&alphaNum,&globalAlpha, 1, MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);//sum up local numerator of alpha, dot product
+
+        globalAlpha = globalAlpha/globalAlphaTemp;    //compute actual alpha
+
+        //issue with dot product of transpose -> HOW???-> if treat as vectors, then fine     
         cblas_daxpy(n,  globalAlpha, p, 1, x, 1);         // x_{k+1} = x_k + alpha_k*p_k
         cblas_daxpy(n, -globalAlpha, t, 1, r, 1);         // r_{k+1} = r_k - alpha_k*A*p_k
     
         eps = cblas_dnrm2(n, r, 1);                 //norm r_{k+1} is error between algorithm and solution, check error tolerance
 
-        //need to compute sum of error norms across all process for comparison, don't use local
-        if(size == 1)
-            globalEps = eps;
-        else 
-            MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+        //need to compute sum of error norms across all process for comparison, don't use local         
+        MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
 
         if (globalEps < tol*tol) {
             break;                                  //stop algorithm if solution is within specified tolerance
@@ -168,15 +161,11 @@ void SolverCG::Solve(double* b, double* x) {
         cblas_dcopy(n, z, 1, t, 1);                 //copy z_{k+1} into t, so t now holds preconditioned r_{k+1}
         
         //collect numerator and denominator of beta and then compute actaul global beta, do as late as possible to allow processes to catch up
-        if(size == 1) {
-            globalBeta = betaNum/betaDen;
-        }
-        else{
-            MPI_Allreduce(&globalBetaTemp,&betaDen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-            MPI_Allreduce(&globalBeta,&betaNum,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-            globalBeta = globalBeta / globalBetaTemp;            
-        }
+        MPI_Allreduce(&betaDen,&globalBetaTemp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+        MPI_Allreduce(&betaNum,&globalBeta,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
         
+        globalBeta = globalBeta / globalBetaTemp;            
+
         cblas_daxpy(n, globalBeta, p, 1, t, 1);           //t = t + beta_k*p_k i.e. p_{k+1} = z_{k+1} + beta_k*p_k
         cblas_dcopy(n, t, 1, p, 1);                 //copy z_{k+1} from t into p, so p_{k+1} = z{k+1}, ready for next iteration
     } while (k < 5000);                             // max 5000 iterations
@@ -191,32 +180,37 @@ void SolverCG::Solve(double* b, double* x) {
     //only print on one process
     if(rowRank == 0 & colRank == 0)
         cout << "Converged in " << k << " iterations. eps = " << eps << endl;
-}
+
+    }
+
 
 void SolverCG::ApplyOperator(double* in, double* out) {
     //cout << "Rank " << rowRank << " has something on left " << leftRank  << endl;
     //first, send 'in' data that is required by adjacent grids
-    //send left and right data as no extra work required
-    if(leftRank != MPI_PROC_NULL) { //only to send to left if not on left boundary
-        MPI_Isend(in,Ny,MPI_DOUBLE,leftRank,4,comm_row_grid,&dataToLeft);   //send data on LHS of current process to the left -> tag 4
-    }
+    //data stored rowwise -> see IDX definition
 
-    if(rightRank != MPI_PROC_NULL) { //only send to right if not on right boundary 
-        MPI_Isend(in+Ny*(Nx-1), Ny, MPI_DOUBLE, rightRank, 5, comm_row_grid,&dataToRight);    //send data on RHS of current process to right -> tag 5
-    }
-    
-    //extract relevant data for top and bottom rows
-    cblas_dcopy(Nx, in, Ny, bottomData, 1);     //store only bottom row of in data into bottomData, Nx data to be sent down
-    cblas_dcopy(Nx, in+Ny-1, Ny, topData, 1);   //store only top row of in data into topData, Nx data to be sent up
-
+    //easy to send top and bottom data, so send first
     if(bottomRank != MPI_PROC_NULL) {           //only send to bottom if not on bottom boundary
-        MPI_Isend(bottomData,1,MPI_DOUBLE,bottomRank,6,comm_col_grid,&dataToDown);   //send data on bottom of current process down -> tag 6
+        MPI_Isend(in,Nx,MPI_DOUBLE,bottomRank,6,comm_col_grid,&dataToDown);   //send data on bottom of current process down -> tag 6
     }
     
     if(topRank != MPI_PROC_NULL) {      //only send to top if not on top boundary
-    MPI_Isend(topData, 1, MPI_DOUBLE, topRank, 7, comm_col_grid,&dataToUp);    //send dataa on top of current process up -> tag 7
+        MPI_Isend(in+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 7, comm_col_grid,&dataToUp);    //send dataa on top of current process up -> tag 7
     }
 
+    //now, first extract relevant daata for left and right columns
+    cblas_dcopy(Ny,in,Nx,tempLeft,1);//write into temporary buffer to prevent accidental data overwrite with Isend
+    cblas_dcopy(Ny,in+Nx-1,Nx,tempRight,1);
+
+    //send left right data
+    if(leftRank != MPI_PROC_NULL) { //only to send to left if not on left boundary
+        MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank,4,comm_row_grid,&dataToLeft);   //send data on LHS of current process to the left -> tag 4
+    }
+
+    if(rightRank != MPI_PROC_NULL) { //only send to right if not on right boundary 
+        MPI_Isend(tempRight,Ny, MPI_DOUBLE, rightRank, 5, comm_row_grid,&dataToRight);    //send data on RHS of current process to right -> tag 5
+    }
+    
     //compute interior points first to give time for all processes to send data; above data required for boundaries of each process
     //interior points of each local domain only requires knowledge of itself, nno other data required
     
@@ -240,7 +234,6 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             jp1++;                                                  //this is done instead of j-1,j+1 in inner loop to encourage vectorisation
         }
     }
-    
     
     //now receive the data, LHS RHS first as sent first
     if(leftRank != MPI_PROC_NULL) {     //can only receive from left rank if not on left boundary
@@ -275,7 +268,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     if(bottomRank != MPI_PROC_NULL) { //check whetehr data send down is complete
         MPI_Wait(&dataToDown,MPI_STATUS_IGNORE);
     }
-    
+
     //first compute the 'corners' of each process domain
     if(Nx == 1 & Ny == 1 & !boundaryDomain) {//if single cell not on boundary, then need access to data from four processes
         out[0] = ( - leftData[0] + 2.0*in[0] - rightData[0] ) * dx2i
@@ -316,26 +309,28 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             out[IDX(0,0)] = (- leftData[0] + 2.0*in[IDX(0,0)] - in[IDX(1,0)]) * dx2i
                         + (- bottomData[0] + 2.0*in[IDX(0,0)] - in[IDX(0,1)]) * dy2i;
        }
-        
+
         //compute bottom right corner of domain, unless process is on right or bottom boundary
         if(!(bottomRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) {
             out[IDX(Nx-1,0)] = (- in[IDX(Nx-1,0)] + 2.0*in[IDX(Nx-1,0)] - rightData[0]) * dx2i
                         + (- bottomData[Nx-1] + 2.0*in[IDX(Nx-1,0)] - in[IDX(Nx-1,1)]) * dy2i;
         }
-        
+
         //compute top left corner of domain, unless process is on left or top boundary
         if(!(topRank == MPI_PROC_NULL | leftRank == MPI_PROC_NULL)) {
             out[IDX(0,Ny-1)] = (- leftData[Ny-1] + 2.0*in[IDX(0,Ny-1)] - in[IDX(1,Ny-1)]) * dx2i
                         + (- in[IDX(0,Ny-2)] + 2.0*in[IDX(0,Ny-1)] - topData[0]) * dy2i;
+
         }
-        
+
         //compute top right corner of domain, unless process is on right or top boundary
         if(!(topRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) {
             out[IDX(Nx-1,Ny-1)] = (- in[IDX(Nx-2,Ny-1)] + 2.0*in[IDX(Nx-1,Ny-1)] - rightData[Ny-1]) * dx2i
                         + (- in[IDX(Nx-1,Ny-2)] + 2.0*in[IDX(Nx-1,Ny-1)] - topData[Nx-1]) * dy2i;
+        
         }
     }
-
+        
     //now compute process edges
     if(Nx == 1 & Ny > 1 & !(leftRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) {
         //if column vector, don't need to do for left or right as BC already imposed along entire column
@@ -382,6 +377,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
                 out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
                             + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
             }
+
         }
     }
 }

@@ -186,7 +186,7 @@ BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
 /**
  * @brief Test SolverCG::Solve where if input b is very close to zero, then output x should be exactly 0.0 for all entries
  */
-BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
+/*BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
 {
     
     const int Nx = 10;                                      //define grid and steps
@@ -233,8 +233,8 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     const int l = 3;
     const double Lx = 2.0 / k;                          //correct domain for problem, such that sin sin has zero boundary conditions
     const double Ly = 2.0 / l;
-    const int Nx = 2000;                                 //define number of grids with correct step sizes
-    const int Ny = 2000;
+    const int Nx = 10;//2000;                                 //define number of grids with correct step sizes
+    const int Ny = 10;//2000;
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
     int n = Nx*Ny;

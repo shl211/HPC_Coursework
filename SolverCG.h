@@ -94,6 +94,9 @@ private:
     double* leftData;///<Pointer to data from left process in Cartesian grid
     double* rightData;///<Pointer to data from right process in Cartesian grid
     
+    double* tempLeft;
+    double* tempRight;
+
     /**
      * @brief Applies the second-order central-difference discretisation of operator \f$ -\nabla^2 \f$ such that \f$ -\nabla^2 p = t \f$
      * @param[in] p     Input data that the operator is applied to
