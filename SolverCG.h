@@ -84,6 +84,11 @@ private:
 
     bool boundaryDomain; ///<denotes whether the process is at the boundary of the Cartesian grid
 
+    double* topData;    ///<Pointer to data from top process in Cartesian grid
+    double* bottomData;///<Pointer to data from bototm process in Cartesian grid
+    double* leftData;///<Pointer to data from left process in Cartesian grid
+    double* rightData;///<Pointer to data from right process in Cartesian grid
+    
     /**
      * @brief Applies the second-order central-difference discretisation of operator \f$ -\nabla^2 \f$ such that \f$ -\nabla^2 p = t \f$
      * @param[in] p     Input data that the operator is applied to
