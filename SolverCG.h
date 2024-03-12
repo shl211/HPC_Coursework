@@ -81,6 +81,11 @@ private:
     int leftRank;///<rank of process to left of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to left
     int rightRank;///<rank of process to right of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to right
     int bottomRank;///<rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
+    
+    MPI_Request dataToLeft;
+    MPI_Request dataToRight;
+    MPI_Request dataToUp;
+    MPI_Request dataToDown;
 
     bool boundaryDomain; ///<denotes whether the process is at the boundary of the Cartesian grid
 

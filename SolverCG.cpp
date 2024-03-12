@@ -99,51 +99,64 @@ void SolverCG::Solve(double* b, double* x) {
     double globalEps;
 
     eps = cblas_dnrm2(n, b, 1);                     //if 2-norm of b is lower than tolerance squared, then b practically zero
-    
+
     //need to compute sum of error norms across all process for comparison, don't use local
-    MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    if(size == 1) {
+        globalEps = eps;//special case of 1 processor
+    }
+    else {
+        MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    }
     
     if (globalEps < tol*tol) {                        
         std::fill(x, x+n, 0.0);                     //hence solution x is practically 0, output the 2-norm and exit function
-        cout << "Norm is " << eps << endl;          //don't waste time with algorithm
+        if(rowRank == 0 & colRank == 0)
+            cout << "Norm is " << globalEps << endl;          //don't waste time with algorithm, print on one rank
         return;
     }
     
     // --------------------------- PRECONDITIONED CONJUGATE GRADIENT ALGORITHM ---------------------------------------------------//
     //Refer to standard notation provided in the literature for this algorithm 
-    
     ApplyOperator(x, t);                            //apply discretised operator -nabla^2 to x, so t = -nabla^2 x, or t = Ax 
-
     cblas_dcopy(n, b, 1, r, 1);                     // r_0 = b (i.e. b)
     ImposeBC(r);                                    //apply zeros to edges
 
     cblas_daxpy(n, -1.0, t, 1, r, 1);               //r=r-t (i.e. r = b - Ax) gives first step of conjugate gradient algorithm
+    
     Precondition(r, z);                             //Precondition the problem, preconditioned matrix in z
     cblas_dcopy(n, z, 1, p, 1);                     // p_0 = z_0 (where z_0 is the preconditioned version of r_0)
-
+    
     k = 0;                                          //initialise iteration counter
+    
     do {
         k++;
         
         ApplyOperator(p, t);                        //compute -nabla^2 p and store in t (effectively A*p_k)
-
-        alphaNum = cblas_ddot(n, t, 1, p, 1);          // alpha = p_k^T*A*p_k
-        alphaDen = cblas_ddot(n, r, 1, z, 1);         // compute alpha_k = (r_k^T*r_k) / (p_k^T*A*p_k)
+   
+        alphaDen = cblas_ddot(n, t, 1, p, 1);          // alpha = p_k^T*A*p_k
+        alphaNum = cblas_ddot(n, r, 1, z, 1);         // compute alpha_k = (r_k^T*r_k) / (p_k^T*A*p_k)
         betaDen  = cblas_ddot(n, r, 1, z, 1);          // z_k^T*r_k (for later in the algorithm)
-
-        MPI_Allreduce(&globalAlphaTemp,&alphaDen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);//sum up local p_k^T*A*p_k, denosminatot which is a dot product
-        MPI_Allreduce(&globalAlpha,&alphaNum, 1, MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);//sum up local numerator of alpha, dot product
-//?Note -> could reduce overheads with MPI if send all three pieces of data together??
-        globalAlpha = globalAlpha/globalAlphaTemp;    //compute actual alpha
-
+        
+        if(size == 1){
+            globalAlpha = alphaNum/alphaDen;       //for case of 1 processor
+        }
+        else {
+            MPI_Allreduce(&globalAlphaTemp,&alphaDen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);//sum up local p_k^T*A*p_k, denosminatot which is a dot product
+            MPI_Allreduce(&globalAlpha,&alphaNum, 1, MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);//sum up local numerator of alpha, dot product
+            globalAlpha = globalAlpha/globalAlphaTemp;    //compute actual alpha
+        }
+        //issue with dot product of transpose -> HOW???        
         cblas_daxpy(n,  globalAlpha, p, 1, x, 1);         // x_{k+1} = x_k + alpha_k*p_k
         cblas_daxpy(n, -globalAlpha, t, 1, r, 1);         // r_{k+1} = r_k - alpha_k*A*p_k
-
+    
         eps = cblas_dnrm2(n, r, 1);                 //norm r_{k+1} is error between algorithm and solution, check error tolerance
 
         //need to compute sum of error norms across all process for comparison, don't use local
-        MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-        
+        if(size == 1)
+            globalEps = eps;
+        else 
+            MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+
         if (globalEps < tol*tol) {
             break;                                  //stop algorithm if solution is within specified tolerance
         }
@@ -155,13 +168,17 @@ void SolverCG::Solve(double* b, double* x) {
         cblas_dcopy(n, z, 1, t, 1);                 //copy z_{k+1} into t, so t now holds preconditioned r_{k+1}
         
         //collect numerator and denominator of beta and then compute actaul global beta, do as late as possible to allow processes to catch up
-        MPI_Allreduce(&globalBetaTemp,&betaDen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-        MPI_Allreduce(&globalBeta,&betaNum,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-        globalBeta = globalBeta / globalBetaTemp;
+        if(size == 1) {
+            globalBeta = betaNum/betaDen;
+        }
+        else{
+            MPI_Allreduce(&globalBetaTemp,&betaDen,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+            MPI_Allreduce(&globalBeta,&betaNum,1, MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+            globalBeta = globalBeta / globalBetaTemp;            
+        }
         
         cblas_daxpy(n, globalBeta, p, 1, t, 1);           //t = t + beta_k*p_k i.e. p_{k+1} = z_{k+1} + beta_k*p_k
         cblas_dcopy(n, t, 1, p, 1);                 //copy z_{k+1} from t into p, so p_{k+1} = z{k+1}, ready for next iteration
-
     } while (k < 5000);                             // max 5000 iterations
 
     if (k == 5000) {
@@ -177,32 +194,31 @@ void SolverCG::Solve(double* b, double* x) {
 }
 
 void SolverCG::ApplyOperator(double* in, double* out) {
-    
+    //cout << "Rank " << rowRank << " has something on left " << leftRank  << endl;
     //first, send 'in' data that is required by adjacent grids
     //send left and right data as no extra work required
     if(leftRank != MPI_PROC_NULL) { //only to send to left if not on left boundary
-        MPI_Send(in,Ny,MPI_DOUBLE,leftRank,4,comm_row_grid);   //send data on LHS of current process to the left -> tag 4
+        MPI_Isend(in,Ny,MPI_DOUBLE,leftRank,4,comm_row_grid,&dataToLeft);   //send data on LHS of current process to the left -> tag 4
     }
-    
+
     if(rightRank != MPI_PROC_NULL) { //only send to right if not on right boundary 
-        MPI_Send(in+Ny*(Nx-1), Ny, MPI_DOUBLE, rightRank, 5, comm_row_grid);    //send data on RHS of current process to right -> tag 5
+        MPI_Isend(in+Ny*(Nx-1), Ny, MPI_DOUBLE, rightRank, 5, comm_row_grid,&dataToRight);    //send data on RHS of current process to right -> tag 5
     }
     
     //extract relevant data for top and bottom rows
     cblas_dcopy(Nx, in, Ny, bottomData, 1);     //store only bottom row of in data into bottomData, Nx data to be sent down
     cblas_dcopy(Nx, in+Ny-1, Ny, topData, 1);   //store only top row of in data into topData, Nx data to be sent up
-    
+
     if(bottomRank != MPI_PROC_NULL) {           //only send to bottom if not on bottom boundary
-        MPI_Send(bottomData,1,MPI_DOUBLE,bottomRank,6,comm_col_grid);   //send data on bottom of current process down -> tag 6
+        MPI_Isend(bottomData,1,MPI_DOUBLE,bottomRank,6,comm_col_grid,&dataToDown);   //send data on bottom of current process down -> tag 6
     }
     
     if(topRank != MPI_PROC_NULL) {      //only send to top if not on top boundary
-    MPI_Send(topData, 1, MPI_DOUBLE, topRank, 7, comm_col_grid);    //send dataa on top of current process up -> tag 7
+    MPI_Isend(topData, 1, MPI_DOUBLE, topRank, 7, comm_col_grid,&dataToUp);    //send dataa on top of current process up -> tag 7
     }
 
     //compute interior points first to give time for all processes to send data; above data required for boundaries of each process
     //interior points of each local domain only requires knowledge of itself, nno other data required
-    
     
     // Assume ordered with y-direction fastest (column-by-column)
     double dx2i = 1.0/dx/dx;                                    //optimised code, compute and store 1/(dx)^2 and 1/(dy)^2
@@ -224,6 +240,8 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             jp1++;                                                  //this is done instead of j-1,j+1 in inner loop to encourage vectorisation
         }
     }
+    
+    
     //now receive the data, LHS RHS first as sent first
     if(leftRank != MPI_PROC_NULL) {     //can only receive from left rank if not on left boundary
         MPI_Recv(leftData,Ny,MPI_DOUBLE,leftRank,5,comm_row_grid,MPI_STATUS_IGNORE);            //rececive LHS data from the left process
@@ -239,6 +257,23 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     
     if(bottomRank != MPI_PROC_NULL) {
         MPI_Recv(bottomData, Nx, MPI_DOUBLE, bottomRank, 7, comm_col_grid,MPI_STATUS_IGNORE);//receive data sent up from process below, is bottom row of curren t process
+    }
+    
+    //wait for send processes to complete, then free in input buffer
+    if(leftRank != MPI_PROC_NULL) { //check whetehr data send to left is complete
+        MPI_Wait(&dataToLeft,MPI_STATUS_IGNORE);
+    }
+    
+    if(rightRank != MPI_PROC_NULL) { //check whetehr data send to right is complete
+        MPI_Wait(&dataToRight,MPI_STATUS_IGNORE);
+    }
+    
+    if(topRank != MPI_PROC_NULL) { //check whetehr data send up is complete
+        MPI_Wait(&dataToUp,MPI_STATUS_IGNORE);
+    }
+    
+    if(bottomRank != MPI_PROC_NULL) { //check whetehr data send down is complete
+        MPI_Wait(&dataToDown,MPI_STATUS_IGNORE);
     }
     
     //first compute the 'corners' of each process domain
