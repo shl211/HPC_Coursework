@@ -1,6 +1,7 @@
 #include <iostream>
 #include <algorithm>
 #include <cstring>
+#include <cmath>
 using namespace std;
 
 #include <cblas.h>
@@ -105,9 +106,11 @@ void SolverCG::Solve(double* b, double* x) {
 
     eps = cblas_dnrm2(n, b, 1);                     //if 2-norm of b is lower than tolerance squared, then b practically zero
 
+    eps *= eps;//square it for summation
     //need to compute sum of error norms across all process for comparison, don't use local
     MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    
+    globalEps = sqrt(globalEps);//reduction gives norm squared
+
     if (globalEps < tol*tol) {                        
         std::fill(x, x+n, 0.0);                     //hence solution x is practically 0, output the 2-norm and exit function
         if(rowRank == 0 & colRank == 0)
@@ -146,16 +149,17 @@ void SolverCG::Solve(double* b, double* x) {
         cblas_daxpy(n, -globalAlpha, t, 1, r, 1);         // r_{k+1} = r_k - alpha_k*A*p_k
     
         eps = cblas_dnrm2(n, r, 1);                 //norm r_{k+1} is error between algorithm and solution, check error tolerance
-
+        eps *= eps;
         //need to compute sum of error norms across all process for comparison, don't use local         
         MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+        globalEps = sqrt(globalEps);
 
         if (globalEps < tol*tol) {
             break;                                  //stop algorithm if solution is within specified tolerance
         }
         
         Precondition(r, z);                         //precondition r_{k+1} and store in z_{k+1}
-        
+
         betaNum = cblas_ddot(n, r, 1, z, 1);    //compute beta_k = (r_{k+1}^T*r_{k+1}) / (r_k^T*r_k)
 
         cblas_dcopy(n, z, 1, t, 1);                 //copy z_{k+1} into t, so t now holds preconditioned r_{k+1}
@@ -179,7 +183,7 @@ void SolverCG::Solve(double* b, double* x) {
 
     //only print on one process
     if(rowRank == 0 & colRank == 0)
-        cout << "Converged in " << k << " iterations. eps = " << eps << endl;
+        cout << "Converged in " << k << " iterations. eps = " << globalEps << endl;
 
     }
 
@@ -312,7 +316,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
 
         //compute bottom right corner of domain, unless process is on right or bottom boundary
         if(!(bottomRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) {
-            out[IDX(Nx-1,0)] = (- in[IDX(Nx-1,0)] + 2.0*in[IDX(Nx-1,0)] - rightData[0]) * dx2i
+            out[IDX(Nx-1,0)] = (- in[IDX(Nx-2,0)] + 2.0*in[IDX(Nx-1,0)] - rightData[0]) * dx2i
                         + (- bottomData[Nx-1] + 2.0*in[IDX(Nx-1,0)] - in[IDX(Nx-1,1)]) * dy2i;
         }
 

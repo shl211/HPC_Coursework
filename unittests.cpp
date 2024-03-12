@@ -233,8 +233,8 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     const int l = 3;
     const double Lx = 2.0 / k;                          //correct domain for problem, such that sin sin has zero boundary conditions
     const double Ly = 2.0 / l;
-    const int Nx = 10;//2000;                                 //define number of grids with correct step sizes
-    const int Ny = 10;//2000;
+    const int Nx = 2000;                                 //define number of grids with correct step sizes
+    const int Ny = 2000;//use 10 for debugging purposes
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
     int n = Nx*Ny;
@@ -264,23 +264,21 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     }
     
     test.Solve(b,x);                                    //Solve the sinusoidal test case
-    
+
     for(int i = xStart; i < xStart + localNx; ++i){                        //Generate the analytical solution x for each chunk
         for(int j = yStart; j < yStart + localNy; ++j) {
             x_actual[IDX(i-xStart,j-yStart)] = - sin(M_PI * k * i * dx) * sin(M_PI * l * j * dy);
         }
     }
 
-    cblas_daxpy(n, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
-    
-    int e = cblas_dnrm2(n,x_actual,1);
-    int globalError;
-    
-    if(size == 1)
-        globalError = e;
-    else
-        MPI_Allreduce(&globalError,&e,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    
+    cblas_daxpy(localNx*localNy, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
+
+    double e = cblas_dnrm2(localNx*localNy,x_actual,1);
+    e *= e;
+    double globalError;
+    MPI_Allreduce(&e,&globalError,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    globalError = sqrt(globalError);
+
     BOOST_CHECK(globalError < tol);    //check the error 2-norm is smaller than tol*tol, or 1e-3
 
     delete[] x;                                          //deallocate memory
