@@ -48,17 +48,25 @@ BOOST_GLOBAL_FIXTURE(MPIFixture);
  * @param[out] comm_col_grid    Communicator for current column of Cartesian grid
  * @param[out] size     size of communicators
  */
-void CreateCartGrid(MPI_Comm &comm_Cart_Grid,MPI_Comm &comm_row_grid, MPI_Comm &comm_col_grid, int &size){
+void CreateCartGrid(MPI_Comm &comm_Cart_Grid,MPI_Comm &comm_row_grid, MPI_Comm &comm_col_grid){
     
-    int worldRank, retval_rank, retval_size;    
+    int worldRank, size;    
     
     //return rank and size
-    retval_rank = MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
-    retval_size = MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     
     //check if input rank is square number size = p^2
     int p = round(sqrt(size));   //round sqrt to nearest whole number
     
+    if((p*p != size) | (size < 1)) {                   //if not a square number, print error and terminate program
+        if(worldRank == 0)                                       //print only on root rank
+            cout << "Invalide process size. Process size must be square number of size p^2 and greater than 0" << endl;
+            
+        MPI_Finalize();
+        exit(-1);
+    }
+
     //set up Cartesian topology to represent the 'grid' nature of the problem
     const int dims = 2;                                 //2 dimensions in grid
     int gridSize[dims] = {p,p};                         //p processes per dimension
@@ -96,14 +104,14 @@ void CreateCartGrid(MPI_Comm &comm_Cart_Grid,MPI_Comm &comm_row_grid, MPI_Comm &
 void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, int &localNx, int &localNy, int &xStart, int &yStart) {
     
     int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
-    int rowStart,rowEnd,colStart,colEnd;                //denotes index of where in problem domain the process accesses directly
+    int rowStart,colStart;                //denotes index of where in problem domain the process accesses directly
     int rem;
     
-    int worldRank, size, retval_rank, retval_size;    
+    int worldRank, size;    
     
     //return rank and size
-    retval_rank = MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
-    retval_size = MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     
     //check if input rank is square number size = p^2
     int p = round(sqrt(size));   //round sqrt to nearest whole number
@@ -121,11 +129,9 @@ void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, int &localNx, in
     if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
         yDomainSize++;
         rowStart = yDomainSize * coords[0];             //index denoting starting row in local domain
-        rowEnd = rowStart + yDomainSize;                //index denoting final row in local domain
     }
     else {//otherwise use minimum, and find other values
         rowStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
-        rowEnd = rowStart + yDomainSize;
     }
     
     //same for x dimension
@@ -134,11 +140,9 @@ void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, int &localNx, in
     if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
         xDomainSize++;
         colStart = xDomainSize * coords[1];             //index denoting starting column in local domain
-        colEnd = colStart + xDomainSize;                //index denoting final column in local domain
     }
     else {//otherwise use minimum, and find other values
         colStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
-        colEnd = colStart + xDomainSize;
     }
     
     localNx = xDomainSize;
@@ -163,10 +167,11 @@ BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
     int localNx = 0;
     int localNy = 0;
     int ignore;
-    CreateCartGrid(grid,row,col,ignore);
+
+    CreateCartGrid(grid,row,col);
     SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);
+
     //Each local SolverCG should have localNx, localNy, as that is the defined behaviour
-    
     SolverCG test(localNx,localNy,dx,dy,row,col);
     
     int testLocalNx = test.GetNx();
@@ -186,35 +191,35 @@ BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
 /**
  * @brief Test SolverCG::Solve where if input b is very close to zero, then output x should be exactly 0.0 for all entries
  */
-/*BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
+BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
 {
     
     const int Nx = 10;                                      //define grid and steps
     const int Ny = 10;
     double dx = 0.1;
     double dy = 0.1;    
-    int n = Nx*Ny;                                          //total number of grid points
     
     //set up MPI for solver and split domain equally
     MPI_Comm grid,row,col;
     int localNx,localNy,ignore;
-    CreateCartGrid(grid,row,col,ignore);
+    CreateCartGrid(grid,row,col);
     SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);
-    
+    int n = Nx*Ny;                                          //total number of grid points
+
     SolverCG test(localNx,localNy,dx,dy,row,col);                             //create test solver
 
-    double *b = new double[localNx*localNy];                              //allocate memory of input b and output x, denotes equation Ax = b
-    double *x = new double[localNx*localNy];
+    double *b = new double[n];                              //allocate memory of input b and output x, denotes equation Ax = b
+    double *x = new double[n];
     
-    for(int i = 0; i < localNx*localNy; i++) {
+    for(int i = 0; i < n; i++) {
         b[i] = 1e-8;                                        //100 element array with each element = 1e-8
     }                                                       //2-norm of b is smaller than tol*tol where tol = 1e-3 as specified in SolverCG 
                                                             //pass relevant size through solver
     
     test.Solve(b,x);                                        //Solve Ax=b for x
     
-    for(int i = 0; i < localNx*localNy; i++) {      //no need to collect, each term should be exaclty 0
-        BOOST_CHECK_EQUAL(x[i],0.0);                        //check all terms of x are exactly 0.0
+    for(int i = 0; i < n; i++) {      //no need to collect, each term should be exaclty 0
+        BOOST_CHECK(x[i]-0.0<1e-20);                        //check all terms of x are 0.0
     }                                                       //use equal instead of close for double as 0.0 should be written into x
     
     delete[] b;                                             //deallocate memory
@@ -237,21 +242,21 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     const int Ny = 2000;//use 10 for debugging purposes
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
-    int n = Nx*Ny;
     double tol = 1e-3;                                  //tolerance as specified in SolverCG
 
     MPI_Comm grid,row,col;
-    int localNx,localNy,xStart,yStart,size;
-    CreateCartGrid(grid,row,col,size);
+    int localNx,localNy,xStart,yStart;
+    CreateCartGrid(grid,row,col);
     SplitDomainMPI(grid, Nx, Ny, localNx,localNy,xStart,yStart);
-    
-    double *b = new double[localNx*localNy];                          //allocate memory
-    double *x = new double[localNx*localNy];
-    double* x_actual = new double[localNx*localNy];
+    int n = localNx*localNy;
+
+    double *b = new double[n];                          //allocate memory
+    double *x = new double[n];
+    double* x_actual = new double[n];
 
     SolverCG test(localNx,localNy,dx,dy,row,col);                         //create test solver
     
-    for(int i = 0; i < localNx*localNy; i++) {
+    for(int i = 0; i < n; i++) {
         b[i] = 0.0;                                     //initialise b and x with zeros
         x[i] = 0.0;                                     //zero BCs naturally satisfied, zeros also improve convergence speed
     }
@@ -271,13 +276,13 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
         }
     }
 
-    cblas_daxpy(localNx*localNy, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
+    cblas_daxpy(n, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
 
-    double e = cblas_dnrm2(localNx*localNy,x_actual,1);
+    double e = cblas_dnrm2(n,x_actual,1);           //2-norm error, to reduce local to global, need to sum squares of error for linearity
     e *= e;
     double globalError;
     MPI_Allreduce(&e,&globalError,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    globalError = sqrt(globalError);
+    globalError = sqrt(globalError);                //summed error squared, so use errror
 
     BOOST_CHECK(globalError < tol);    //check the error 2-norm is smaller than tol*tol, or 1e-3
 
