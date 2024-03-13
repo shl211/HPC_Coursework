@@ -18,32 +18,54 @@ using namespace std;
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
 
-LidDrivenCavity::LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int coords0, int coords1)
+LidDrivenCavity::LidDrivenCavity(MPI_Comm &cartGrid, MPI_Comm &rowGrid, MPI_Comm &colGrid)
 {
     comm_row_grid = rowGrid;
     comm_col_grid = colGrid;
-    MPIcoords[0] = coords0;                 //note that coordinates describe the grid index in matrix notation
-    MPIcoords[1] = coords1;
     MPI_Comm_size(comm_row_grid,&size);     //get size of communicator
     
-    //reduce global values onto all grid only, for correct calculation of dx and dy and printing of Lx,Ly,Nx,Ny etc.
-    MPI_Allreduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,comm_row_grid);
-    MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);   //-> note for future, is there any point in splitting Lx Ly up in main, when I'm gonna need global values anyway?
-
-    //compute ranks along the row communciator and along teh column communicator
+    //compute ranks along the row communciator and along the column communicator
     MPI_Comm_rank(comm_row_grid, &rowRank); 
     MPI_Comm_rank(comm_col_grid, &colRank);
 
     //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
-    MPI_Cart_shift(comm_col_grid,0,1,&topRank,&bottomRank);
+    MPI_Cart_shift(comm_col_grid,0,1,&bottomRank,&topRank);
     MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);
     
     if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL))
         boundaryDomain = false;
     else
         boundaryDomain = true;      //check whether the current process is on the edge of the grid/cavity    
+
+    //first discretise the default domain into grids, in unlikely case default case is used
+    globalNx = Nx;
+    globalNy = Ny;
+    UpdateDxDy();
+
+    //now discretise grid domains
+    Nx = globalNx / size;
+    Ny = globalNy / size;
+
+    int rem;
+
+    //first assign for y dimension
+    rem = globalNy % size;                   //remainder, denotes how many processes need an column in domain
+    int gridRank;
+    int dims = 2;
+    int coords[2];
+    MPI_Comm_rank(cartGrid, &gridRank);         //retrieve rank in grid, also check if grid created successfully
+    MPI_Cart_coords(cartGrid, gridRank, dims, coords);        //generate coordinates
+
+    if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
+        Ny++;
+    }
     
-    //cout << "Coord (" << coords0 << "," << coords1 << ") has row rank " << rowRank << " and left is " << leftRank << " and right is "<< right << endl;
+    //same for x dimension
+    rem = globalNx % size;
+        
+    if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
+        Nx++;
+    }
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -69,15 +91,15 @@ double LidDrivenCavity::GetDy() {
 }   
     
 int LidDrivenCavity::GetNx() {
-    return globalNx;
+    return Nx;
 }
 
 int LidDrivenCavity::GetNy() {
-    return globalNy;
+    return Ny;
 }
 
 int LidDrivenCavity::GetNpts() {
-    return globalNx*globalNy;
+    return Nx*Ny;
 }
 
 double LidDrivenCavity::GetLx() {
@@ -172,6 +194,9 @@ void LidDrivenCavity::Initialise()
     sBottomData = new double[Nx]();
     sLeftData = new double[Ny]();                  //left and right data have size local Ny x 1
     sRightData = new double[Ny]();
+
+    tempLeft = new double[Ny];
+    tempRight = new double[Ny];
 }
 
 void LidDrivenCavity::Integrate()
@@ -180,7 +205,7 @@ void LidDrivenCavity::Integrate()
     int NSteps = ceil(T/dt);                                        //number of time steps required, rounded up
     for (int t = 0; t < NSteps; ++t)
     {
-        if((MPIcoords[0] == 0) & (MPIcoords[1] == 0)) {                           //only print on root rank
+        if((rowRank == 0) & (colRank == 0)) {                           //only print on root rank
             std::cout << "Step: " << setw(8) << t
                       << "  Time: " << setw(8) << t*dt
                       << std::endl;                                     //after each step, output time and step information
@@ -224,7 +249,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
 
 void LidDrivenCavity::PrintConfiguration()
 {
-    if((MPIcoords[0] == 0) & (MPIcoords[1]== 0)) {
+    if((rowRank == 0) & (colRank == 0)) {
         cout << "Grid size: " << globalNx << " x " << globalNy << endl;                         //print the current problem configuration
         cout << "Spacing:   " << dx << " x " << dy << endl;
         cout << "Length:    " << Lx << " x " << Ly << endl;
@@ -237,7 +262,7 @@ void LidDrivenCavity::PrintConfiguration()
     }
     
     if (nu * dt / dx / dy > 0.25) {                                             //if timestep restriction not satisfied, terminate the program
-        if((MPIcoords[0] == 0) & (MPIcoords[1] == 0)) {                     //only print on root tank
+        if((rowRank == 0) & (colRank == 0)) {                     //only print on root tank
             cout << "ERROR: Time-step restriction not satisfied!" << endl;
             cout << "Maximum time-step is " << 0.25 * dx * dy / nu << endl;
         }
@@ -263,6 +288,9 @@ void LidDrivenCavity::CleanUp()
         delete[] sBottomData;
         delete[] sRightData;
         delete[] sLeftData;
+
+        delete[] tempLeft;
+        delete[] tempRight;
     }
 }
 
@@ -278,28 +306,29 @@ void LidDrivenCavity::Advance()
 {
     //----------------Send streamfunction data asap -----------------// Note: maybe send left right data first, as no processing
     //if not top row, send data from bottom row of current process to process in grid below so that grid below now has top data for five point stencil
-    //similar logic for bottom, left and right
-    //for rows, need to extract data first
-    cblas_dcopy(Nx, s, Ny, sBottomData, 1);    //store only bottom row of streamfunction data into sBottomData, Nx data to send down
-    cblas_dcopy(Nx, s+Ny-1, Ny, sTopData, 1);    //store only top row of streamfunction data into sTopData to be sent, Nx data to send up
+    
+    //row major storage, so top and bottom can be sent now
     
     if(topRank != MPI_PROC_NULL) {               //send data upwards unless at teh top boundary
-        MPI_Send(sTopData, Nx, MPI_DOUBLE, topRank, 0, comm_col_grid);                  //tag = 0 -> streamfunction data sent up
+        MPI_Isend(s+Ny*(Nx-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&dataToUp);                  //tag = 0 -> streamfunction data sent up
     }
     if(bottomRank != MPI_PROC_NULL){                   //send data downwards unlsss at teh bottom bounday
-        MPI_Send(sBottomData, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid);            //tag = 1 -> streamfunction data sent down
+        MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&dataToDown);            //tag = 1 -> streamfunction data sent down
     }
-    
-    //for left and right columns, no need to extract data first as already in column major
-    //s denotes start of leftmost column
+
+    //now extract left and right data
+    cblas_dcopy(Ny,s,Nx,tempLeft,1);
+    cblas_dcopy(Ny,s+Nx-1,Nx,tempRight,1);
+
+    //now send data
     if(leftRank != MPI_PROC_NULL) {                //send data left unless at the left boundary
-        MPI_Send(s,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid);             //tag = 2 -> streamfunction data sent left
+        MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&dataToLeft);             //tag = 2 -> streamfunction data sent left
     }
     //send data with Ny datapoints and s+Ny*(Nx-1) denotes start of last column (i.e right most column)
     if(rightRank != MPI_PROC_NULL) {                //send data right unless at the right boundary
-        MPI_Send(s+Ny*(Nx-1),Ny,MPI_DOUBLE,rightRank,3,comm_row_grid);                        //tag = 3 -> streamfunction data sent right
+        MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&dataToRight);                        //tag = 3 -> streamfunction data sent right
     }
-    
+
     double dxi  = 1.0/dx;
     double dyi  = 1.0/dy;
     double dx2i = 1.0/dx/dx;

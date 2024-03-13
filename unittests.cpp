@@ -25,8 +25,8 @@
  */
 #define IDX(I,J) ((J)*localNx + (I))                     //define a new operation to improve computation?
 
-struct MPIFixture {
-    MPIFixture() {
+struct MPISetUp {
+    MPISetUp() {
         // Access argc and argv from Boost Test framework
         int& argc = boost::unit_test::framework::master_test_suite().argc;
         char**& argv = boost::unit_test::framework::master_test_suite().argv;
@@ -34,12 +34,12 @@ struct MPIFixture {
         MPI_Init(&argc, &argv);
     }
 
-    ~MPIFixture() {
+    ~MPISetUp() {
         MPI_Finalize();
     }
 };
 
-BOOST_GLOBAL_FIXTURE(MPIFixture);
+BOOST_GLOBAL_FIXTURE(MPISetUp);
 
 /**
  * @brief Setup Cartesian grid and column and row communicators
@@ -118,7 +118,7 @@ void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, int &localNx, in
     xDomainSize = globalNx / p;           //minimum size of each process in x and y domain
     yDomainSize = globalNy / p;
 
-    //first assign for x dimension
+    //first assign for y dimension
     rem = globalNy % p;                   //remainder, denotes how many processes need an column in domain
     int gridRank;
     int dims = 2;
@@ -204,9 +204,9 @@ BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
     int localNx,localNy,ignore;
     CreateCartGrid(grid,row,col);
     SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);
-    int n = Nx*Ny;                                          //total number of grid points
+    int n = localNx*localNy;                                //total number of grid points in process
 
-    SolverCG test(localNx,localNy,dx,dy,row,col);                             //create test solver
+    SolverCG test(localNx,localNy,dx,dy,row,col);           //create test solver
 
     double *b = new double[n];                              //allocate memory of input b and output x, denotes equation Ax = b
     double *x = new double[n];
@@ -214,13 +214,13 @@ BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
     for(int i = 0; i < n; i++) {
         b[i] = 1e-8;                                        //100 element array with each element = 1e-8
     }                                                       //2-norm of b is smaller than tol*tol where tol = 1e-3 as specified in SolverCG 
-                                                            //pass relevant size through solver
-    
+
+    //pass data through solver, each process should solve part of the problem
     test.Solve(b,x);                                        //Solve Ax=b for x
     
-    for(int i = 0; i < n; i++) {      //no need to collect, each term should be exaclty 0
-        BOOST_CHECK(x[i]-0.0<1e-20);                        //check all terms of x are 0.0
-    }                                                       //use equal instead of close for double as 0.0 should be written into x
+    for(int i = 0; i < n; i++) {                            //no need to collect, each term should be 0
+        BOOST_CHECK(x[i]-0.0<1e-20);
+    }
     
     delete[] b;                                             //deallocate memory
     delete[] x;
@@ -238,25 +238,26 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     const int l = 3;
     const double Lx = 2.0 / k;                          //correct domain for problem, such that sin sin has zero boundary conditions
     const double Ly = 2.0 / l;
-    const int Nx = 2000;                                 //define number of grids with correct step sizes
-    const int Ny = 2000;//use 10 for debugging purposes
+    const int Nx = 2000;                                //define number of grids with correct step sizes, this is for the entire 'global' domain
+    const int Ny = 2000;
     double dx = (double)Lx/(Nx - 1);
     double dy = (double)Ly/(Ny - 1);    
-    double tol = 1e-3;                                  //tolerance as specified in SolverCG
+    double tol = 1e-3;                                  //define the tolerance
 
+    //create the communicator that SolverCG expects
     MPI_Comm grid,row,col;
     int localNx,localNy,xStart,yStart;
     CreateCartGrid(grid,row,col);
-    SplitDomainMPI(grid, Nx, Ny, localNx,localNy,xStart,yStart);
-    int n = localNx*localNy;
+    SplitDomainMPI(grid, Nx, Ny, localNx,localNy,xStart,yStart);    //compute local domain of each process
+    int n = localNx*localNy;                            //local number of points in process
 
     double *b = new double[n];                          //allocate memory
     double *x = new double[n];
     double* x_actual = new double[n];
 
-    SolverCG test(localNx,localNy,dx,dy,row,col);                         //create test solver
+    SolverCG test(localNx,localNy,dx,dy,row,col);       //create test solver
     
-    for(int i = 0; i < n; i++) {
+    for(int i = 0; i < n; i++) {//other ways to do this
         b[i] = 0.0;                                     //initialise b and x with zeros
         x[i] = 0.0;                                     //zero BCs naturally satisfied, zeros also improve convergence speed
     }
@@ -268,6 +269,7 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
         }
     }
     
+    //each process should solve part of the problem Ax=b
     test.Solve(b,x);                                    //Solve the sinusoidal test case
 
     for(int i = xStart; i < xStart + localNx; ++i){                        //Generate the analytical solution x for each chunk
@@ -276,27 +278,87 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
         }
     }
 
-    cblas_daxpy(n, -1.0, x, 1, x_actual, 1);            //compute error between analytical and solver, store in x_actual
+    cblas_daxpy(n, -1.0, x, 1, x_actual, 1);             //compute error between analytical and solver, store in x_actual
 
-    double e = cblas_dnrm2(n,x_actual,1);           //2-norm error, to reduce local to global, need to sum squares of error for linearity
+    double e = cblas_dnrm2(n,x_actual,1);                //2-norm error, to reduce local to global, need to sum squares of error for linearity
     e *= e;
     double globalError;
     MPI_Allreduce(&e,&globalError,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
-    globalError = sqrt(globalError);                //summed error squared, so use errror
+    globalError = sqrt(globalError);                    //summed error squared, so use errror
 
-    BOOST_CHECK(globalError < tol);    //check the error 2-norm is smaller than tol*tol, or 1e-3
+    BOOST_CHECK(globalError < tol);                     //check the error 2-norm is smaller than tol*tol, or 1e-3
 
-    delete[] x;                                          //deallocate memory
+    delete[] x;                                         //deallocate memory
     delete[] x_actual;
     delete[] b;
 }
+
+/**
+ * @brief Tests whether LidDrivenCavity constructor is generated correctly in MPI implementation. Should split the default domain in unlikely case that it is used
+*/
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
+    //default values in class
+    int Nx = 9;
+    int Ny = 9;
+    int Npts = 81;
+    double Lx = 1.0;
+    double Ly = 1.0;
+    double dx = (double)Lx/(Nx-1);
+    double dy = (double)Ly/(Ny-1);
+    double dt = 0.01;
+    double T = 1.0;
+    double Re = 10.0;
+    double U = 1.0;
+    double nu = 0.1;
+
+    //MPI implementation
+    MPI_Comm grid,row,col;
+    int localNx,localNy,ignore;
+    
+    CreateCartGrid(grid,row,col);
+    SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
+    
+    LidDrivenCavity test(grid,row,col);
+
+    //these values should be the same across all processes
+    double tol = 1e-3;
+    BOOST_CHECK_CLOSE(test.GetDt(), dt, tol);
+    BOOST_CHECK_CLOSE(test.GetT(), T, tol);
+    BOOST_CHECK_CLOSE(test.GetRe(), Re, tol);
+    BOOST_CHECK_CLOSE(test.GetNu(),nu,tol);
+    BOOST_CHECK_CLOSE(test.GetDx(),dx,tol);
+    BOOST_CHECK_CLOSE(test.GetDy(),dy,tol);
+
+    int actualNx = test.GetNx();//local values
+    int actualNy = test.GetNy();
+    cout << "Local " << actualNx << " Should be " << localNx << endl;
+
+    int actualGlobalNx;
+    int actualGlobalNy;
+    MPI_Allreduce(&actualNx,&actualGlobalNx,1,MPI_INT,MPI_SUM,row);//compute global values
+    MPI_Allreduce(&actualNy,&actualGlobalNy,1,MPI_INT,MPI_SUM,col);
+
+
+    BOOST_REQUIRE(localNx == actualNx);
+    BOOST_REQUIRE(localNy == actualNy);
+    BOOST_REQUIRE(Nx == actualGlobalNx);
+    BOOST_REQUIRE(Ny == actualGlobalNy);
+}
+
 
 /**
  * @brief Test whether LidDrivenCavity::SetDomainSize assigns values correctly and correctly configures problem
  */
 /*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
     
-    LidDrivenCavity test;         //lid driven cavity with default values
+    //set up MPI communicators and split domain equally
+    MPI_Comm grid,row,col;
+    int localNx,localNy,ignore;
+    
+    CreateCartGrid(grid,row,col);
+    SplitDomainMPI(grid, 9, 9, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor
+
+    LidDrivenCavity test(row,col);         //lid driven cavity with default values
 
     //values to assign
     double Lx = 2.2;
@@ -312,9 +374,11 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     double U    = test.GetU();                      //Horizontal velocity at top of lid, default 1
     double nu   = test.GetNu();                      //Kinematic viscosity, default 0.1
     
+
+
     //compute expected values
-    double expectedDx = Lx/(Nx-1);                  //Grid spacing in x direction
-    double expectedDy = Ly/(Ny-1);                  //Grid spacing in y direction
+    double expectedDx = Lx/(globalNx-1);                  //Grid spacing in x direction
+    double expectedDy = Ly/(globalNy-1);                  //Grid spacing in y direction
     
     double tol = 1e-6;
 

@@ -136,7 +136,7 @@ void SolverCG::Solve(double* b, double* x) {
         ApplyOperator(p, t);                       //compute -nabla^2 p and store in t (effectively A*p_k)
 
         alphaDen = cblas_ddot(n, t, 1, p, 1);          // alpha = p_k^T*A*p_k
-        alphaNum = cblas_ddot(n, r, 1, z, 1);         // compute alpha_k = (r_k^T*r_k) / (p_k^T*A*p_k)
+        alphaNum = cblas_ddot(n, r, 1, z, 1);          // compute alpha_k = (r_k^T*r_k) / (p_k^T*A*p_k)
         betaDen  = cblas_ddot(n, r, 1, z, 1);          // z_k^T*r_k (for later in the algorithm)
 
         MPI_Allreduce(&alphaDen,&globalAlphaTemp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);//sum up local p_k^T*A*p_k, denosminatot which is a dot product

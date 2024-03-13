@@ -18,12 +18,12 @@ class LidDrivenCavity
 public:
     /**
      * @brief Constructor containing information on MPI process within a Cartesian topology
+     * @param[in] cartGrid  MPI communicator for Cartesian grid
      * @param[in] rowGrid   MPI communicator for the process row in Cartesian topology grid
      * @param[in] colGrid   MPI communicator for the process column in Cartesian topology grid
-     * @param[in] coords0   Denotes the row the MPI process is within a Cartesian topology grid i.e.coordinates[0]
-     * @param[in] coords1   Denotes the column the MPI process is within a Cartesian topology grid i.e.coordinates[1]
+
      */
-    LidDrivenCavity(MPI_Comm &rowGrid, MPI_Comm &colGrid, int coords0, int coords1);
+    LidDrivenCavity(MPI_Comm &cartGrid, MPI_Comm &rowGrid, MPI_Comm &colGrid);
     
     /**
      * @brief Destructor to deallocate memory
@@ -189,7 +189,6 @@ private:
 
     MPI_Comm comm_row_grid;                 ///<MPI communicator for the process row in Cartesian topology grid
     MPI_Comm comm_col_grid;                 ///<MPI communicator for the process column in Cartesian topology grid
-    int MPIcoords[2];                        ///<Coordinate of MPI process in a Cartesian topology grid
     int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
     int globalNx;                               ///<global Nx
     int globalNy;                               ///<global Ny
@@ -203,6 +202,11 @@ private:
 
     bool boundaryDomain; ///<denotes whether the process is at the boundary of the CCartesian grid
 
+    MPI_Request dataToLeft;
+    MPI_Request dataToRight;
+    MPI_Request dataToUp;
+    MPI_Request dataToDown;
+
     double* vTopData = nullptr;              ///<Buffer to store the data 1 row above top of local grid
     double* vLeftData = nullptr;             ///<Buffer to store the data 1 column to left of local grid
     double* vRightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
@@ -212,6 +216,9 @@ private:
     double* sRightData = nullptr;             ///<Buffer to store the data 1 column to right of local grid
     double* sBottomData = nullptr;              ///<Buffer to store the data 1 row below bottom of local grid
     
+    double* tempLeft;
+    double* tempRight;
+
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 
     /**
