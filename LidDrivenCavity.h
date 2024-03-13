@@ -18,12 +18,8 @@ class LidDrivenCavity
 public:
     /**
      * @brief Constructor containing information on MPI process within a Cartesian topology
-     * @param[in] cartGrid  MPI communicator for Cartesian grid
-     * @param[in] rowGrid   MPI communicator for the process row in Cartesian topology grid
-     * @param[in] colGrid   MPI communicator for the process column in Cartesian topology grid
-
      */
-    LidDrivenCavity(MPI_Comm &cartGrid, MPI_Comm &rowGrid, MPI_Comm &colGrid);
+    LidDrivenCavity();
     
     /**
      * @brief Destructor to deallocate memory
@@ -61,11 +57,23 @@ public:
     int GetNx();
     
     /**
+     * @brief Get the total number of grid points in x direction, for testing purposes
+     * @return Total number of grid points in x direction
+     */
+    int GetGlobalNx();
+
+    /**
      * @brief Get the total number of grid points in y direction, for testing purposes
      * @return Total number of grid points in y direction
      */
     int GetNy();
     
+    /**
+     * @brief Get the total number of grid points in y direction, for testing purposes
+     * @return Total number of grid points in y direction
+     */
+    
+    int GetGlobalNy();
     /**
      * @brief Get total number of grid points, for testing purposes
      * @return Total number of grid points
@@ -77,12 +85,24 @@ public:
      * @return Domain length in x direction
      */
      double GetLx();
+
+         /**
+     * @brief Get domain length in x direction, for testing purposes
+     * @return Domain length in x direction
+     */
+     double GetGlobalLx();
     
     /**
      * @brief Get domain length in y direction, for testing purposes
      * @return Domain length in y direction
      */
      double GetLy();
+    
+        /**
+     * @brief Get domain length in y direction, for testing purposes
+     * @return Domain length in y direction
+     */
+     double GetGlobalLy();
     
     /**
      * @brief Get Reynolds number, for testing purposes
@@ -187,11 +207,14 @@ private:
     double U    = 1.0;                      ///<Horizontal velocity at top of lid, default 1
     double nu   = 0.1;                      ///<Kinematic viscosity, default 0.1
 
+    MPI_Comm comm_Cart_grid;
     MPI_Comm comm_row_grid;                 ///<MPI communicator for the process row in Cartesian topology grid
     MPI_Comm comm_col_grid;                 ///<MPI communicator for the process column in Cartesian topology grid
     int size;                               ///<Size of a row/column communicator, where size*size is the total number of processors
     int globalNx;                               ///<global Nx
     int globalNy;                               ///<global Ny
+    double globalLx;
+    double globalLy;
 
     int rowRank;///<rank of current process in comm_row_grid
     int colRank;///<rank of current process in comm_col_grid
@@ -235,5 +258,28 @@ private:
      * @brief Computes vorticity and streamfunction for each grid point in the problem for the next time step
      */
     void Advance();
+
+    /**
+   * @brief Setup Cartesian grid and column and row communicators
+   * @param[out] comm_Cart_Grid   Communicator for Cartesian grid
+   * @param[out] comm_row_grid    Communicator for current row of Cartesian grid
+   * @param[out] comm_col_grid    Communicator for current column of Cartesian grid
+   * @param[out] size     size of communicators
+   */
+    void CreateCartGrid(MPI_Comm &cartGrid,MPI_Comm &rowGrid, MPI_Comm &colGrid);
+
+    /**
+     * @brief Split the global grid size into local grid size based off MPI grid size
+     * @param[in] grid      MPI Cartesian grid
+     * @param[in] globalNx  Global Nx domain to be discretised
+     * @param[in] globalNy Global Ny domain to be discretised
+     * @param[in] globalLx  Global Lxx
+     * @param[in] globalLy
+     * @param[out] localNx  Domain size Nx for each local process
+     * @param[out] localNy  Domain size Ny for each local process
+     * @param[out] localLx
+     * @param[out] localLy
+     */
+    void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, int &localNx, int &localNy, double &localLx, double &localLy) ;
 };
 

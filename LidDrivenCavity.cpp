@@ -18,14 +18,15 @@ using namespace std;
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
 
-LidDrivenCavity::LidDrivenCavity(MPI_Comm &cartGrid, MPI_Comm &rowGrid, MPI_Comm &colGrid)
+LidDrivenCavity::LidDrivenCavity()
 {
-    comm_row_grid = rowGrid;
-    comm_col_grid = colGrid;
+
+    CreateCartGrid(comm_Cart_grid,comm_row_grid,comm_col_grid);        //create communicataors
+
     MPI_Comm_size(comm_row_grid,&size);     //get size of communicator
     
     //compute ranks along the row communciator and along the column communicator
-    MPI_Comm_rank(comm_row_grid, &rowRank); 
+    MPI_Comm_rank(comm_row_grid, &rowRank);
     MPI_Comm_rank(comm_col_grid, &colRank);
 
     //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
@@ -40,32 +41,13 @@ LidDrivenCavity::LidDrivenCavity(MPI_Comm &cartGrid, MPI_Comm &rowGrid, MPI_Comm
     //first discretise the default domain into grids, in unlikely case default case is used
     globalNx = Nx;
     globalNy = Ny;
+    globalLx = Lx;
+    globalLy = Ly;
     UpdateDxDy();
 
     //now discretise grid domains
-    Nx = globalNx / size;
-    Ny = globalNy / size;
-
-    int rem;
-
-    //first assign for y dimension
-    rem = globalNy % size;                   //remainder, denotes how many processes need an column in domain
-    int gridRank;
-    int dims = 2;
-    int coords[2];
-    MPI_Comm_rank(cartGrid, &gridRank);         //retrieve rank in grid, also check if grid created successfully
-    MPI_Cart_coords(cartGrid, gridRank, dims, coords);        //generate coordinates
-
-    if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
-        Ny++;
-    }
-    
-    //same for x dimension
-    rem = globalNx % size;
-        
-    if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
-        Nx++;
-    }
+    SplitDomainMPI(comm_Cart_grid,globalNx,globalNy,globalLx, globalLy, Nx, Ny, Lx, Ly);
+    cout << "Global " << globalLx << " local " << Lx << endl; 
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -120,6 +102,22 @@ double LidDrivenCavity::GetU() {
 
 double LidDrivenCavity::GetNu() {
     return nu;
+}
+
+int LidDrivenCavity::GetGlobalNx(){
+    return globalNx;
+}
+
+int LidDrivenCavity::GetGlobalNy(){
+    return globalNy;
+}
+
+double LidDrivenCavity::GetGlobalLx(){
+    return globalLx;
+}
+
+double LidDrivenCavity::GetGlobalLy(){
+    return globalLy;
 }
 
 void LidDrivenCavity::GetData(double* vOut, double* sOut, double* u0Out, double* u1Out) {
@@ -801,3 +799,99 @@ void LidDrivenCavity::Advance()
     // Solve Poisson problem
     cg->Solve(vNext, s);
 }
+
+//MPI stuff
+void LidDrivenCavity::CreateCartGrid(MPI_Comm &cartGrid,MPI_Comm &rowGrid, MPI_Comm &colGrid){
+    
+    int worldRank, size;    
+    
+    //return rank and size
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    this-> size = size; //assign size to global variable
+
+    //check if input rank is square number size = p^2
+    int p = round(sqrt(size));   //round sqrt to nearest whole number
+    
+    if((p*p != size) | (size < 1)) {                   //if not a square number, print error and terminate program
+        if(worldRank == 0)                                       //print only on root rank
+            cout << "Invalide process size. Process size must be square number of size p^2 and greater than 0" << endl;
+            
+        MPI_Finalize();
+        exit(-1);
+    }
+
+    //set up Cartesian topology to represent the 'grid' nature of the problem
+    const int dims = 2;                                 //2 dimensions in grid
+    int gridSize[dims] = {p,p};                         //p processes per dimension
+    int periods[dims] = {0,0};                          //grid is not periodic
+    int reorder = 1;                                    //reordering of grid
+    MPI_Cart_create(MPI_COMM_WORLD,dims,gridSize,periods,reorder, &cartGrid);        //create Cartesian topology
+
+    //extract coordinates
+    int gridRank;
+    int coords[dims];
+    int keep[dims];
+    
+    MPI_Comm_rank(cartGrid, &gridRank);         //retrieve rank in grid, also check if grid created successfully
+    MPI_Cart_coords(cartGrid, gridRank, dims, coords);        //generate coordinates
+    
+    keep[0] = 0;        //create row communnicator in subgrid, process can communicate with other processes on row
+    keep[1] = 1;
+    MPI_Cart_sub(cartGrid, keep, &rowGrid);
+
+    keep[0] = 1;        //create column communnicator in subgrid, process can communicate with other processes on column
+    keep[1] = 0;
+    MPI_Cart_sub(cartGrid, keep, &colGrid);
+}
+
+void LidDrivenCavity::SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, int &localNx, int &localNy, double &localLx, double &localLy) {
+    
+    int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
+    int rowStart,colStart;                //denotes index of where in problem domain the process accesses directly
+    int rem;
+    
+    int worldRank, size;    
+    
+    //return rank and size
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    
+    //check if input rank is square number size = p^2
+    int p = round(sqrt(size));   //round sqrt to nearest whole number
+    xDomainSize = globalNx / p;           //minimum size of each process in x and y domain
+    yDomainSize = globalNy / p;
+
+    //first assign for y dimension
+    rem = globalNy % p;                   //remainder, denotes how many processes need an column in domain
+    int gridRank;
+    int dims = 2;
+    int coords[2];
+    MPI_Comm_rank(grid, &gridRank);         //retrieve rank in grid, also check if grid created successfully
+    MPI_Cart_coords(grid, gridRank, dims, coords);        //generate coordinates
+    
+    if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
+        yDomainSize++;
+        rowStart = yDomainSize * coords[0];             //index denoting starting row in local domain
+    }
+    else {//otherwise use minimum, and find other values
+        rowStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
+    }
+    
+    //same for x dimension
+    rem = globalNx % p;
+        
+    if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
+        xDomainSize++;
+        colStart = xDomainSize * coords[1];             //index denoting starting column in local domain
+    }
+    else {//otherwise use minimum, and find other values
+        colStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
+    }
+    
+    localNx = xDomainSize;
+    localNy = yDomainSize;
+    localLx = (double) globalLx *localNx/globalNx;
+    localLy = (double) globalLy * localNy/globalNy;
+}
+
