@@ -331,143 +331,145 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 
     int actualNx = test.GetNx();//local values
     int actualNy = test.GetNy();
-    cout << "Local " << actualNx << " Should be " << localNx << endl;
+    int actualNpts = test.GetNpts();
 
     int actualGlobalNx;
     int actualGlobalNy;
+    int actualGlobalNpts;
     MPI_Allreduce(&actualNx,&actualGlobalNx,1,MPI_INT,MPI_SUM,row);//compute global values
     MPI_Allreduce(&actualNy,&actualGlobalNy,1,MPI_INT,MPI_SUM,col);
-
+    MPI_Allreduce(&actualNpts,&actualGlobalNpts,1,MPI_INT,MPI_SUM,grid);
 
     BOOST_REQUIRE(localNx == actualNx);
     BOOST_REQUIRE(localNy == actualNy);
+    BOOST_REQUIRE(localNx*localNy == actualNpts);
     BOOST_REQUIRE(Nx == actualGlobalNx);
     BOOST_REQUIRE(Ny == actualGlobalNy);
+    BOOST_REQUIRE(Npts == actualGlobalNpts);
 }
-
 
 /**
  * @brief Test whether LidDrivenCavity::SetDomainSize assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
     
+    //default values in class
+    int Nx = 9;
+    int Ny = 9;
+    int Npts = 81;
+
+    //values to assign and expectations
+    double Lx = 2.2;
+    double Ly = 3.3;
+    double dx = (double)Lx/(Nx-1);
+    double dy = (double)Ly/(Ny-1);
+
     //set up MPI communicators and split domain equally
     MPI_Comm grid,row,col;
     int localNx,localNy,ignore;
     
     CreateCartGrid(grid,row,col);
-    SplitDomainMPI(grid, 9, 9, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor
+    SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor
 
-    LidDrivenCavity test(row,col);         //lid driven cavity with default values
-
-    //values to assign
-    double Lx = 2.2;
-    double Ly = 3.3;                        //domain lengths
+    LidDrivenCavity test(grid,row,col);         //lid driven cavity with default values
     
-    //Get default values in class
-    double dt   = test.GetDt();                     //Time step for solver, default 0.01
-    double T    = test.GetT();                      //Final time for solver, default 1
-    int    Nx   = test.GetNx();                        //Number of grid points in x direction, default 9
-    int    Ny   = test.GetNy();                        //Number of grid points in y direction, default 9
-    int    Npts = test.GetNpts();                       //Total number of grid points, default 81
-    double Re   = test.GetRe();                       //Reynolds number, default 10
-    double U    = test.GetU();                      //Horizontal velocity at top of lid, default 1
-    double nu   = test.GetNu();                      //Kinematic viscosity, default 0.1
-    
-
-
-    //compute expected values
-    double expectedDx = Lx/(globalNx-1);                  //Grid spacing in x direction
-    double expectedDy = Ly/(globalNy-1);                  //Grid spacing in y direction
-    
-    double tol = 1e-6;
-
     test.SetDomainSize(Lx,Ly);          //call function to be tested
     
-    //check whether changed values, Lx,Ly,dx,dy are actually changed correctly
+    //check whether values changed correctly
+    double tol = 1e-6;
     BOOST_REQUIRE( abs(Lx - test.GetLx()) < tol);
     BOOST_REQUIRE( abs(Ly - test.GetLy()) < tol);
-    BOOST_REQUIRE( abs(expectedDx - test.GetDx()) < tol);
-    BOOST_REQUIRE( abs(expectedDy - test.GetDy()) < tol);
+    BOOST_REQUIRE( abs(dx - test.GetDx()) < tol);
+    BOOST_REQUIRE( abs(dy - test.GetDy()) < tol);
     
-    //check whether other values remain the same, can use equality even for doubles as numbers should be exacltyy the same
-    BOOST_REQUIRE( test.GetDt() == dt);
-    BOOST_REQUIRE( test.GetT() == T);
-    BOOST_REQUIRE( test.GetNx() == Nx);
-    BOOST_REQUIRE( test.GetNy() == Ny);
-    BOOST_REQUIRE( test.GetNpts() == Npts);
-    BOOST_REQUIRE( test.GetRe() == Re);
-    BOOST_REQUIRE (test.GetNu() == nu);
-    BOOST_REQUIRE( test.GetU() == U);
+    int actualNx = test.GetNx();//local values
+    int actualNy = test.GetNy();
+    int actualNpts = test.GetNpts();
+
+    //check right domain size is maintianed
+    int actualGlobalNx;
+    int actualGlobalNy;
+    int actualGlobalNpts;
+    MPI_Allreduce(&actualNx,&actualGlobalNx,1,MPI_INT,MPI_SUM,row);//compute global values
+    MPI_Allreduce(&actualNy,&actualGlobalNy,1,MPI_INT,MPI_SUM,col);
+    MPI_Allreduce(&actualNpts,&actualGlobalNpts,1,MPI_INT,MPI_SUM,grid);
+
+    BOOST_REQUIRE(localNx == actualNx);
+    BOOST_REQUIRE(localNy == actualNy);
+    BOOST_REQUIRE(localNx*localNy == actualNpts);
+    BOOST_REQUIRE(Nx == actualGlobalNx);
+    BOOST_REQUIRE(Ny == actualGlobalNy);
+    BOOST_REQUIRE(Npts == actualGlobalNpts);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetGridSize assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
     
-    LidDrivenCavity test;         //lid driven cavity with default values
+    //default values in class
+    double Lx = 1.0;
+    double Ly = 1.0;
 
-    //values to assign
+    //values to assign and what expected values are
     int Nx = 102;
     int Ny = 307;                        //grid points in x and y
+    int Npts = Nx*Ny;
+    double dx = (double)Lx/(Nx-1);
+    double dy = (double)Ly/(Ny-1);
+
+    //MPI implementation
+    MPI_Comm grid,row,col;
+    int localNx,localNy,ignore;
     
-    //Get default values in class
-    double dt   = test.GetDt();                     //Time step for solver, default 0.01
-    double T    = test.GetT();                      //Final time for solver, default 1
-    double    Lx   = test.GetLx();                      //Domain lengths
-    double    Ly   = test.GetLy();                        
-    double Re   = test.GetRe();                      //Reynolds number, default 10
-    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
-    double nu   = test.GetNu();                      //Kinematic viscosity, default 0.1
+    CreateCartGrid(grid,row,col);
+    SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
     
-    //compute expected values
-    double expectedDx = Lx/(Nx-1);                  //Grid spacing in x direction
-    double expectedDy = Ly/(Ny-1);                  //Grid spacing in y direction
-    int expectedNpts = Nx*Ny;
-    
+    LidDrivenCavity test(grid,row,col);
+
     double tol = 1e-6;
 
-    test.SetGridSize(Nx,Ny);          //call function to be tested
-    
-    //check whether changed values, Nx,Ny,Npts,dx,dy are actually changed correctly
-    BOOST_REQUIRE( test.GetNx() == Nx);
-    BOOST_REQUIRE( test.GetNy() == Ny);
-    BOOST_REQUIRE( test.GetNpts() == expectedNpts);
-    BOOST_REQUIRE( abs(expectedDx - test.GetDx()) < tol);
-    BOOST_REQUIRE( abs(expectedDy - test.GetDy()) < tol);
+    test.SetGridSize(localNx,localNy);          //call function to be tested -> local values are passed through
     
     //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
-    BOOST_REQUIRE( test.GetDt() == dt);
-    BOOST_REQUIRE( test.GetT() == T);
-    BOOST_REQUIRE( test.GetLx() == Lx);
-    BOOST_REQUIRE( test.GetLy() == Ly);
-    BOOST_REQUIRE( test.GetRe() == Re);
-    BOOST_REQUIRE( test.GetNu() == nu);
-    BOOST_REQUIRE( test.GetU() == U);
+    BOOST_REQUIRE( abs(test.GetLx() - Lx)<tol);     //Lx should still be the global values
+    BOOST_REQUIRE( abs(test.GetLy() - Ly)<tol);
+    BOOST_REQUIRE( abs(test.GetDx() - dx)<tol);     
+    BOOST_REQUIRE( abs(test.GetDy() - dy)<tol);     
+
+    
+    int actualNx = test.GetNx();//local values
+    int actualNy = test.GetNy();
+    int actualNpts = test.GetNpts();
+
+    int actualGlobalNx;
+    int actualGlobalNy;
+    int actualGlobalNpts;
+    MPI_Allreduce(&actualNx,&actualGlobalNx,1,MPI_INT,MPI_SUM,row);//compute global values
+    MPI_Allreduce(&actualNy,&actualGlobalNy,1,MPI_INT,MPI_SUM,col);
+    MPI_Allreduce(&actualNpts,&actualGlobalNpts,1,MPI_INT,MPI_SUM,grid);
+
+    BOOST_REQUIRE(localNx == actualNx);
+    BOOST_REQUIRE(localNy == actualNy);
+    BOOST_REQUIRE(localNx*localNy == actualNpts);
+    BOOST_REQUIRE(Nx == actualGlobalNx);
+    BOOST_REQUIRE(Ny == actualGlobalNy);
+    BOOST_REQUIRE(Npts == actualGlobalNpts);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetTimeStep assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
-    LidDrivenCavity test;         //lid driven cavity with default values
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
 
-    //values to assign
+    //variable to set
     double dt = 0.024;
+
+    //MPI implementation
+    MPI_Comm grid,row,col;    
+    CreateCartGrid(grid,row,col);
     
-    //Get default values in class
-    int Nx = test.GetNx();                          //grid points
-    int Ny = test.GetNy();
-    int Npts = test.GetNpts();
-    double T = test.GetT();                      //Final time for solver, default 1
-    double Lx = test.GetLx();                      //Domain lengths
-    double Ly = test.GetLy();                        
-    double Re = test.GetRe();                      //Reynolds number, default 10
-    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
-    double nu = test.GetNu();                      //Kinematic viscosity, default 0.1
-    double dx = test.GetDx();
-    double dy = test.GetDy();
+    LidDrivenCavity test(grid,row,col);
     
     //no other expected values
     double tol = 1e-6;
@@ -476,43 +478,21 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     
     //check whether changed values, dt is actually changed correctly
     BOOST_REQUIRE( abs(dt - test.GetDt()) < tol);
-    
-    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
-    BOOST_REQUIRE( test.GetNx() == Nx);
-    BOOST_REQUIRE( test.GetNy() == Ny);
-    BOOST_REQUIRE( test.GetNpts() == Npts);
-    BOOST_REQUIRE( test.GetDx() == dx);     //although dx and dy not yet assigned, but data should be untouched, so can use equality
-    BOOST_REQUIRE( test.GetDy() == dy);
-    BOOST_REQUIRE( test.GetT() == T);
-    BOOST_REQUIRE( test.GetLx() == Lx);
-    BOOST_REQUIRE( test.GetLy() == Ly);
-    BOOST_REQUIRE( test.GetRe() == Re);
-    BOOST_REQUIRE( test.GetNu() == nu);
-    BOOST_REQUIRE( test.GetU() == U);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetFinalTime assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
-    LidDrivenCavity test;         //lid driven cavity with default values
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
 
     //values to assign
     double T = 23.43;
     
-    //Get default values in class
-    int Nx = test.GetNx();                          //grid points
-    int Ny = test.GetNy();
-    int Npts = test.GetNpts();
-    double dt = test.GetDt();                      //time step
-    double Lx = test.GetLx();                      //Domain lengths
-    double Ly = test.GetLy();                        
-    double Re = test.GetRe();                      //Reynolds number, default 10
-    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
-    double nu = test.GetNu();                      //Kinematic viscosity, default 0.1
-    double dx = test.GetDx();
-    double dy = test.GetDy();
+    //MPI implementation
+    MPI_Comm grid,row,col;    
+    CreateCartGrid(grid,row,col);
     
+    LidDrivenCavity test(grid,row,col);
     //no other expected values
     double tol = 1e-6;
 
@@ -520,65 +500,34 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     
     //check whether changed values, T is actually changed correctly
     BOOST_REQUIRE( abs(T - test.GetT()) < tol);
-    
-    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
-    BOOST_REQUIRE( test.GetNx() == Nx);
-    BOOST_REQUIRE( test.GetNy() == Ny);
-    BOOST_REQUIRE( test.GetNpts() == Npts);
-    BOOST_REQUIRE( test.GetDx() == dx);     //although dx and dy not yet assigned, but data should be untouched, so can use equality
-    BOOST_REQUIRE( test.GetDy() == dy);
-    BOOST_REQUIRE( test.GetDt() == dt);
-    BOOST_REQUIRE( test.GetLx() == Lx);
-    BOOST_REQUIRE( test.GetLy() == Ly);
-    BOOST_REQUIRE( test.GetRe() == Re);
-    BOOST_REQUIRE( test.GetNu() == nu);
-    BOOST_REQUIRE( test.GetU() == U);
+
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetReynoldsNumber assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
-    LidDrivenCavity test;         //lid driven cavity with default values
-
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
     //values to assign
     double Re = 5000;
-    
-    //Get default values in class
-    int Nx = test.GetNx();                          //grid points
-    int Ny = test.GetNy();
-    int Npts = test.GetNpts();
-    double dt = test.GetDt();                      //time step
-    double T = test.GetT();                         //final time
-    double Lx = test.GetLx();                      //Domain lengths
-    double Ly = test.GetLy();                        
-    double U    = test.GetU();                     //Horizontal velocity at top of lid, default 1
-    double dx = test.GetDx();
-    double dy = test.GetDy();
-    
-    //compute other expected values nu
+
+    //expected values
+    double U = 1.0;
     double nu = U/Re;
     
     double tol = 1e-6;
+
+   //MPI implementation
+    MPI_Comm grid,row,col;    
+    CreateCartGrid(grid,row,col);
+
+    LidDrivenCavity test(grid,row,col);
 
     test.SetReynoldsNumber(Re);          //call function to be tested
     
     //check whether changed values,  is actually changed correctly
     BOOST_REQUIRE( abs(Re - test.GetRe()) < tol);
     BOOST_REQUIRE( abs(nu - test.GetNu()) < tol);
-    
-    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
-    BOOST_REQUIRE( test.GetNx() == Nx);
-    BOOST_REQUIRE( test.GetNy() == Ny);
-    BOOST_REQUIRE( test.GetNpts() == Npts);
-    BOOST_REQUIRE( test.GetDx() == dx);     //although dx and dy not yet assigned, but data should be untouched, so can use equality
-    BOOST_REQUIRE( test.GetDy() == dy);
-    BOOST_REQUIRE( test.GetDt() == dt);
-    BOOST_REQUIRE( test.GetT() == T);
-    BOOST_REQUIRE( test.GetLx() == Lx);
-    BOOST_REQUIRE( test.GetLy() == Ly);
-    BOOST_REQUIRE( test.GetRe() == Re);
-    BOOST_REQUIRE( test.GetU() == U);    
+    BOOST_REQUIRE( abs(U - test.GetU()) < tol);
 }
 
 /**
@@ -612,7 +561,14 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     string configReynolds = "Reynolds number: 100";
     string configOther = "Linear solver: preconditioned conjugate gradient";
 
-    LidDrivenCavity test;                           //default constructor
+    //MPI implementation
+    MPI_Comm grid,row,col;
+    int localNx,localNy,ignore;
+    
+    CreateCartGrid(grid,row,col);
+    SplitDomainMPI(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
+    
+    LidDrivenCavity test(grid,row,col);
     
     // Redirect cout to a stringstream for capturing the output
     std::stringstream terminalOutput;
@@ -620,7 +576,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 
     // Invoke setting functions and print the solver configuration to stringstream
     test.SetDomainSize(Lx,Ly);
-    test.SetGridSize(Nx,Ny);
+    test.SetGridSize(localNx,localNy);      //each solver should get a local Nx and Ny
     test.SetTimeStep(dt);
     test.SetFinalTime(T);
     test.SetReynoldsNumber(Re);
