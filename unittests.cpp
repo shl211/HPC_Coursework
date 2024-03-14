@@ -632,7 +632,6 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
         for(int i = xStart; i < xStart + localNx; ++i) {
             BOOST_CHECK_SMALL(v[IDX(i,j)],tol);
             BOOST_CHECK_SMALL(s[IDX(i,j)],tol);
-
         }
     }
 }
@@ -642,7 +641,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
  * Upon problem initialisation, streamfunction and voriticity should be zero everywhere. Vertical and horizontal velocities should be zero 
  * everywhere, except at top of lid where horizontal velocity is 1.
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution) 
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution) 
 {
     //take previous working test case, same variable definitions as before
     double dt   = 0.2;
