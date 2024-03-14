@@ -123,23 +123,14 @@ double LidDrivenCavity::GetGlobalLy(){
     return globalLy;
 }
 
-void LidDrivenCavity::GetData(double* vOut, double* sOut, double* u0Out, double* u1Out) {
+//local
+void LidDrivenCavity::GetData(double* vOut, double* sOut) {
+    
     for(int i = 0; i < Npts; ++i) {
         vOut[i] = v[i];              //copy data for vorticity and streamfunction
         sOut[i] = s[i];
     }
     
-    //--------------------For checking velocity, code snippet exactly same as the one used in WriteSolution ---------------//
-    for (int i = 1; i < Nx - 1; ++i) {
-        for (int j = 1; j < Ny - 1; ++j) {
-            u0Out[IDX(i,j)] =  (sOut[IDX(i,j+1)] - sOut[IDX(i,j)]) / dy;     //compute velocity in x direction at every grid point from streamfunction
-            u1Out[IDX(i,j)] = -(sOut[IDX(i+1,j)] - sOut[IDX(i,j)]) / dx;     //compute velocity in y direction at every grid point from streamfunction
-        }
-    }
-    for (int i = 0; i < Nx; ++i) {
-        u0Out[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
-    }
-    //----------------------------------------------------------------------------------------------------------------------//
 }
 
 void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
@@ -254,7 +245,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
 
 void LidDrivenCavity::PrintConfiguration()
 {
-    if((rowRank == 0) & (colRank == 0)) {
+    if((rowRank == 0) & (colRank == 0)) {//only print on root rank
         cout << "Grid size: " << globalNx << " x " << globalNy << endl;                         //print the current problem configuration
         cout << "Spacing:   " << dx << " x " << dy << endl;
         cout << "Length:    " << globalLx << " x " << globalLy << endl;

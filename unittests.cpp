@@ -587,7 +587,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 /**
  * @brief Test whether LidDrivenCavity::Initialise initialises the vorticity, streamfunctions and velocities correctly
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
     //take previous working test case, same variable definitions as before
     double dt   = 0.2;
     double T    = 5.1;
@@ -599,6 +599,18 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
     //double dx = 0.05;
     //double dy = 0.2;
     
+   //split the domain and compute what each MPI communicator data should be for initialise
+    MPI_Comm grid,row,col;
+    int localNx,localNy,xStart,yStart;
+    double ignoreDouble;
+    CreateCartGridVerify(grid,row,col);
+    SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,ignoreDouble,ignoreDouble,xStart,yStart);    //compute local domain of each process
+    int localNpts = localNx*localNy;                            //local number of points in process
+
+    //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
+    int bottomRank,topRank;
+    MPI_Cart_shift(col,0,1,&bottomRank,&topRank);//from bottom to top
+
     //set up lid driven cavity class and configure the problem
     LidDrivenCavity test;
     test.SetDomainSize(Lx,Ly);
@@ -609,30 +621,19 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
     
     test.Initialise();                              //initialise the problem
     
-    double* v = new double[Nx*Ny];
-    double* s = new double[Nx*Ny];
-    double* u0 = new double[Nx*Ny];
-    double* u1 = new double[Nx*Ny];
+    double* v = new double[localNpts];
+    double* s = new double[localNpts];//v and s should be zero
     double tol = 1e-6;
     
-    test.GetData(v,s,u0,u1);
+    test.GetData(v,s);
     
-    //initial condition implies zero for all values that are not top surface
-    for(int j = 0; j < Ny-1; ++j) {
-        for(int i = 0; i < Nx; ++i) {
+    //initialise implies zero for all values
+    for(int j = yStart; j < yStart + localNy; ++j) {
+        for(int i = xStart; i < xStart + localNx; ++i) {
             BOOST_CHECK_SMALL(v[IDX(i,j)],tol);
             BOOST_CHECK_SMALL(s[IDX(i,j)],tol);
-            BOOST_CHECK_SMALL(u0[IDX(i,j)],tol);
-            BOOST_CHECK_SMALL(u1[IDX(i,j)],tol);
+
         }
-    }
-    
-    //for top surface, all values have zero, except u1, which should be equal to 1
-    for(int i = 0; i < Nx; ++i) {
-        BOOST_CHECK_SMALL(v[IDX(i,Ny-1)],tol);
-        BOOST_CHECK_SMALL(s[IDX(i,Ny-1)],tol);
-        BOOST_CHECK_CLOSE(u0[IDX(i,Ny-1)],1.0,tol);
-        BOOST_CHECK_SMALL(u1[IDX(i,Ny-1)],tol);
     }
 }
 

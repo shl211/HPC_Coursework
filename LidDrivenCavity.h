@@ -132,10 +132,8 @@ public:
      * @brief Get vorticity, streamfunction, and velocity data. Results written into the provided pointers.
      * @param[out] vOut    pointer to array containing vorticity
      * @param[out] sOut    pointer to array containing streamfunction
-     * @param[out] u0Out   pointer to array containing velocity in x direction
-     * @param[out] u1Out   pointer to array containing velocity in y direction
      */
-    void GetData(double* vOut, double* sOut, double* u0Out, double* u1Out);
+    void GetData(double* vOut, double* sOut);
 
 
     /**
