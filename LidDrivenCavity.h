@@ -81,6 +81,12 @@ public:
     int GetNpts();
     
     /**
+     * @brief Get total number of grid points, for testing purposes
+     * @return Total number of grid points
+     */
+    int GetGlobalNpts();
+
+    /**
      * @brief Get domain length in x direction, for testing purposes
      * @return Domain length in x direction
      */

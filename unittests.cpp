@@ -101,7 +101,7 @@ void CreateCartGridVerify(MPI_Comm &comm_Cart_Grid,MPI_Comm &comm_row_grid, MPI_
  * @param[out] xStart   Starting point of local domain in global domain, x direction
  * @param[out] yStart   Starting point of local domain in global domain, y direction
  */
-void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, int &localNx, int &localNy, int &xStart, int &yStart) {
+void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, int &localNx, int &localNy, double &localLx, double &localLy, int &xStart, int &yStart) {
     
     int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
     int rowStart,colStart;                //denotes index of where in problem domain the process accesses directly
@@ -149,6 +149,8 @@ void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, int &local
     localNy = yDomainSize;
     xStart = colStart;
     yStart = rowStart;
+    localLx = (double) globalLx * localNx / globalNx;
+    localLy = (double) globalLy * localNy / globalNy;
 }
 
 /**
@@ -167,9 +169,10 @@ BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
     int localNx = 0;
     int localNy = 0;
     int ignore;
+    double ignoreDouble;
 
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,ignore,ignore);
+    SplitDomainMPIVerify(grid, Nx, Ny, ignoreDouble,ignoreDouble,localNx,localNy,ignoreDouble,ignoreDouble,ignore,ignore);
 
     //Each local SolverCG should have localNx, localNy, as that is the defined behaviour
     SolverCG test(localNx,localNy,dx,dy,row,col);
@@ -202,8 +205,9 @@ BOOST_AUTO_TEST_CASE(SolverCG_NearZeroInput)
     //set up MPI for solver and split domain equally
     MPI_Comm grid,row,col;
     int localNx,localNy,ignore;
+    double ignoreDouble;
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,ignore,ignore);
+    SplitDomainMPIVerify(grid, Nx, Ny, ignoreDouble, ignoreDouble, localNx,localNy,ignoreDouble,ignoreDouble,ignore,ignore);
     int n = localNx*localNy;                                //total number of grid points in process
 
     SolverCG test(localNx,localNy,dx,dy,row,col);           //create test solver
@@ -247,8 +251,9 @@ BOOST_AUTO_TEST_CASE(SolverCG_SinusoidalInput)
     //create the communicator that SolverCG expects
     MPI_Comm grid,row,col;
     int localNx,localNy,xStart,yStart;
+    double ignoreDouble;
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,xStart,yStart);    //compute local domain of each process
+    SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,ignoreDouble,ignoreDouble,xStart,yStart);    //compute local domain of each process
     int n = localNx*localNy;                            //local number of points in process
 
     double *b = new double[n];                          //allocate memory
@@ -314,9 +319,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     //MPI implementation
     MPI_Comm grid,row,col;
     int localNx,localNy,ignore;
+    double localLx,localLy;
     
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
+    SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,localLx,localLy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
     
     LidDrivenCavity test;
 
@@ -329,25 +335,26 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     BOOST_CHECK_CLOSE(test.GetDx(),dx,tol);
     BOOST_CHECK_CLOSE(test.GetDy(),dy,tol);
 
-    int actualNx = test.GetNx();//local values should be received
-    int actualNy = test.GetNy();
-    int actualNpts = test.GetNpts();
-
+    //check local and global chunks
     BOOST_REQUIRE(test.GetNx() == localNx);//check local values assigned to each chunk
     BOOST_REQUIRE(test.GetNy() == localNy);
     BOOST_REQUIRE(test.GetNpts() == localNx*localNy);
     
+    BOOST_REQUIRE(test.GetLx() == localLx);
+    BOOST_REQUIRE(test.GetLy() == localLy);
+
     BOOST_REQUIRE(test.GetGlobalNx() == Nx);//check correct global value
     BOOST_REQUIRE(test.GetGlobalNy() == Ny);
-    //BOOST_REQUIRE(test.GetGlobalNpts)
+    BOOST_REQUIRE(test.GetGlobalNpts() == Npts);
 
-    //need to include tests for distance
+    BOOST_REQUIRE(test.GetGlobalLx() == Lx);
+    BOOST_REQUIRE(test.GetGlobalLy() == Ly);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetDomainSize assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
     
     //default values in class
     int Nx = 9;
@@ -363,45 +370,36 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     //set up MPI communicators and split domain equally
     MPI_Comm grid,row,col;
     int localNx,localNy,ignore;
+    double localLx,localLy;
     
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor
+    SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,localLx,localLy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor
 
-    LidDrivenCavity test(grid,row,col);         //lid driven cavity with default values
+    LidDrivenCavity test;         //lid driven cavity with default values
     
-    test.SetDomainSize(Lx,Ly);          //call function to be tested
+    test.SetDomainSize(Lx,Ly);          //call function to be tested, input global values
     
     //check whether values changed correctly
     double tol = 1e-6;
-    BOOST_REQUIRE( abs(Lx - test.GetLx()) < tol);
-    BOOST_REQUIRE( abs(Ly - test.GetLy()) < tol);
-    BOOST_REQUIRE( abs(dx - test.GetDx()) < tol);
-    BOOST_REQUIRE( abs(dy - test.GetDy()) < tol);
-    
-    int actualNx = test.GetNx();//local values
-    int actualNy = test.GetNy();
-    int actualNpts = test.GetNpts();
+    BOOST_REQUIRE( abs(test.GetLx() - localLx) < tol);//check local values
+    BOOST_REQUIRE( abs(test.GetLy() - localLy) < tol);
+    BOOST_REQUIRE( abs(test.GetDx() - dx) < tol);
+    BOOST_REQUIRE( abs(test.GetDy() - dy) < tol);
+    BOOST_REQUIRE(test.GetNx() == localNx);
+    BOOST_REQUIRE(test.GetNy() == localNy);
+    BOOST_REQUIRE(test.GetNpts() == localNx*localNy);
 
-    //check right domain size is maintianed
-    int actualGlobalNx;
-    int actualGlobalNy;
-    int actualGlobalNpts;
-    MPI_Allreduce(&actualNx,&actualGlobalNx,1,MPI_INT,MPI_SUM,row);//compute global values
-    MPI_Allreduce(&actualNy,&actualGlobalNy,1,MPI_INT,MPI_SUM,col);
-    MPI_Allreduce(&actualNpts,&actualGlobalNpts,1,MPI_INT,MPI_SUM,grid);
-
-    BOOST_REQUIRE(localNx == actualNx);
-    BOOST_REQUIRE(localNy == actualNy);
-    BOOST_REQUIRE(localNx*localNy == actualNpts);
-    BOOST_REQUIRE(Nx == actualGlobalNx);
-    BOOST_REQUIRE(Ny == actualGlobalNy);
-    BOOST_REQUIRE(Npts == actualGlobalNpts);
+    BOOST_REQUIRE( abs(test.GetGlobalLx() - Lx) < tol);//check global values
+    BOOST_REQUIRE( abs(test.GetGlobalLy() - Ly) < tol);
+    BOOST_REQUIRE( test.GetGlobalNx() == Nx);
+    BOOST_REQUIRE( test.GetGlobalNy() == Ny);
+    BOOST_REQUIRE( test.GetGlobalNpts() == Nx * Ny);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetGridSize assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
     
     //default values in class
     double Lx = 1.0;
@@ -414,87 +412,68 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     double dx = (double)Lx/(Nx-1);
     double dy = (double)Ly/(Ny-1);
 
-    //MPI implementation
+    //set up MPI communicators and split domain equally
     MPI_Comm grid,row,col;
     int localNx,localNy,ignore;
+    double localLx,localLy;
     
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
+    SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,localLx,localLy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor
     
-    LidDrivenCavity test(grid,row,col);
+    LidDrivenCavity test;
 
+    test.SetGridSize(Nx,Ny);          //call function to be tested -> pass global value
+    
+    //check whether values changed correctly
     double tol = 1e-6;
+    BOOST_REQUIRE( abs(test.GetLx() - localLx) < tol);//check local values
+    BOOST_REQUIRE( abs(test.GetLy() - localLy) < tol);
+    BOOST_REQUIRE( abs(test.GetDx() - dx) < tol);
+    BOOST_REQUIRE( abs(test.GetDy() - dy) < tol);
+    BOOST_REQUIRE(test.GetNx() == localNx);
+    BOOST_REQUIRE(test.GetNy() == localNy);
+    BOOST_REQUIRE(test.GetNpts() == localNx*localNy);
 
-    test.SetGridSize(localNx,localNy);          //call function to be tested -> local values are passed through
-    
-    //check whether other values remain the same, can use equality even for doubles as numbers should be exaclty the same, as they should not have been altered
-    BOOST_REQUIRE( abs(test.GetLx() - Lx)<tol);     //Lx should still be the global values
-    BOOST_REQUIRE( abs(test.GetLy() - Ly)<tol);
-    BOOST_REQUIRE( abs(test.GetDx() - dx)<tol);     
-    BOOST_REQUIRE( abs(test.GetDy() - dy)<tol);     
-
-    
-    int actualNx = test.GetNx();//local values
-    int actualNy = test.GetNy();
-    int actualNpts = test.GetNpts();
-
-    int actualGlobalNx;
-    int actualGlobalNy;
-    int actualGlobalNpts;
-    MPI_Allreduce(&actualNx,&actualGlobalNx,1,MPI_INT,MPI_SUM,row);//compute global values
-    MPI_Allreduce(&actualNy,&actualGlobalNy,1,MPI_INT,MPI_SUM,col);
-    MPI_Allreduce(&actualNpts,&actualGlobalNpts,1,MPI_INT,MPI_SUM,grid);
-
-    BOOST_REQUIRE(localNx == actualNx);
-    BOOST_REQUIRE(localNy == actualNy);
-    BOOST_REQUIRE(localNx*localNy == actualNpts);
-    BOOST_REQUIRE(Nx == actualGlobalNx);
-    BOOST_REQUIRE(Ny == actualGlobalNy);
-    BOOST_REQUIRE(Npts == actualGlobalNpts);
+    BOOST_REQUIRE( abs(test.GetGlobalLx() - Lx) < tol);//check global values
+    BOOST_REQUIRE( abs(test.GetGlobalLy() - Ly) < tol);
+    BOOST_REQUIRE( test.GetGlobalNx() == Nx);
+    BOOST_REQUIRE( test.GetGlobalNy() == Ny);
+    BOOST_REQUIRE( test.GetGlobalNpts() == Nx * Ny);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetTimeStep assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
 
     //variable to set
     double dt = 0.024;
 
     //MPI implementation
-    MPI_Comm grid,row,col;    
-    CreateCartGridVerify(grid,row,col);
     
-    LidDrivenCavity test(grid,row,col);
-    
-    //no other expected values
-    double tol = 1e-6;
+    LidDrivenCavity test;
 
     test.SetTimeStep(dt);          //call function to be tested
     
-    //check whether changed values, dt is actually changed correctly
-    BOOST_REQUIRE( abs(dt - test.GetDt()) < tol);
+    //no other expected values, check dt
+    double tol = 1e-6;
+    BOOST_REQUIRE( abs(test.GetDt() - dt) < tol);
 }
 
 /**
  * @brief Test whether LidDrivenCavity::SetFinalTime assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
 
     //values to assign
     double T = 23.43;
     
-    //MPI implementation
-    MPI_Comm grid,row,col;    
-    CreateCartGridVerify(grid,row,col);
-    
-    LidDrivenCavity test(grid,row,col);
-    //no other expected values
-    double tol = 1e-6;
+    LidDrivenCavity test;
 
     test.SetFinalTime(T);          //call function to be tested
     
-    //check whether changed values, T is actually changed correctly
+    //no other expected values, check T only
+    double tol = 1e-6;
     BOOST_REQUIRE( abs(T - test.GetT()) < tol);
 
 }
@@ -502,7 +481,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 /**
  * @brief Test whether LidDrivenCavity::SetReynoldsNumber assigns values correctly and correctly configures problem
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
     //values to assign
     double Re = 5000;
 
@@ -510,17 +489,12 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     double U = 1.0;
     double nu = U/Re;
     
-    double tol = 1e-6;
-
-   //MPI implementation
-    MPI_Comm grid,row,col;    
-    CreateCartGridVerify(grid,row,col);
-
-    LidDrivenCavity test(grid,row,col);
+    LidDrivenCavity test;
 
     test.SetReynoldsNumber(Re);          //call function to be tested
     
     //check whether changed values,  is actually changed correctly
+    double tol = 1e-6;
     BOOST_REQUIRE( abs(Re - test.GetRe()) < tol);
     BOOST_REQUIRE( abs(nu - test.GetNu()) < tol);
     BOOST_REQUIRE( abs(U - test.GetU()) < tol);
@@ -529,7 +503,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 /**
  * @brief Test case to confirm whether LidDrivenCavity::PrintConfiguration function prints out the correct configuration
  */
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 {
     //define a test case with different numbers for each
     double dt   = 0.2;                          //time step
@@ -559,12 +533,13 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 
     //MPI implementation
     MPI_Comm grid,row,col;
-    int localNx,localNy,ignore;
-    
     CreateCartGridVerify(grid,row,col);
-    SplitDomainMPIVerify(grid, Nx, Ny, localNx,localNy,ignore,ignore);//default Nx, Ny is 9; should be split by constructor into localNx and localNy
-    
-    LidDrivenCavity test(grid,row,col);
+
+    int rowRank,colRank;
+    MPI_Comm_rank(row,&rowRank);
+    MPI_Comm_rank(col,&colRank);      //need to know as printing should only occur on root rank, or rowRank = 0 and colRank = 0
+
+    LidDrivenCavity test;
     
     // Redirect cout to a stringstream for capturing the output
     std::stringstream terminalOutput;
@@ -572,7 +547,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 
     // Invoke setting functions and print the solver configuration to stringstream
     test.SetDomainSize(Lx,Ly);
-    test.SetGridSize(localNx,localNy);      //each solver should get a local Nx and Ny
+    test.SetGridSize(Nx,Ny);
     test.SetTimeStep(dt);
     test.SetFinalTime(T);
     test.SetReynoldsNumber(Re);
@@ -585,14 +560,28 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     //check if desired string is present in the terminal output
     std::string output = terminalOutput.str();
 
-    BOOST_REQUIRE(output.find(configGridSize) != std::string::npos);
-    BOOST_REQUIRE(output.find(configSpacing) != std::string::npos);
-    BOOST_REQUIRE(output.find(configLength) != std::string::npos);
-    BOOST_REQUIRE(output.find(configGridPts) != std::string::npos);
-    BOOST_REQUIRE(output.find(configTimestep) != std::string::npos);
-    BOOST_REQUIRE(output.find(configSteps) != std::string::npos);
-    BOOST_REQUIRE(output.find(configReynolds) != std::string::npos);
-    BOOST_REQUIRE(output.find(configOther) != std::string::npos);
+    //root rank should print
+    if(rowRank == 0 & colRank == 0) {
+        BOOST_REQUIRE(output.find(configGridSize) != std::string::npos);
+        BOOST_REQUIRE(output.find(configSpacing) != std::string::npos);
+        BOOST_REQUIRE(output.find(configLength) != std::string::npos);
+        BOOST_REQUIRE(output.find(configGridPts) != std::string::npos);
+        BOOST_REQUIRE(output.find(configTimestep) != std::string::npos);
+        BOOST_REQUIRE(output.find(configSteps) != std::string::npos);
+        BOOST_REQUIRE(output.find(configReynolds) != std::string::npos);
+        BOOST_REQUIRE(output.find(configOther) != std::string::npos);
+    }
+    else {  //no other ranks should do so, but not critical
+
+        BOOST_CHECK(output.find(configGridSize) == std::string::npos);
+        BOOST_CHECK(output.find(configSpacing) == std::string::npos);
+        BOOST_CHECK(output.find(configLength) == std::string::npos);
+        BOOST_CHECK(output.find(configGridPts) == std::string::npos);
+        BOOST_CHECK(output.find(configTimestep) == std::string::npos);
+        BOOST_CHECK(output.find(configSteps) == std::string::npos);
+        BOOST_CHECK(output.find(configReynolds) == std::string::npos);
+        BOOST_CHECK(output.find(configOther) == std::string::npos);
+    }
 }
 
 /**

@@ -42,12 +42,11 @@ LidDrivenCavity::LidDrivenCavity()
     globalNx = Nx;
     globalNy = Ny;
     globalLx = Lx;
-    globalLy = Ly;
+    globalLy = Ly;//assign global values
     UpdateDxDy();
 
     //now discretise grid domains
     SplitDomainMPI(comm_Cart_grid,globalNx,globalNy,globalLx, globalLy, Nx, Ny, Lx, Ly);
-    cout << "Global " << globalLx << " local " << Lx << endl; 
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -82,6 +81,10 @@ int LidDrivenCavity::GetNy() {
 
 int LidDrivenCavity::GetNpts() {
     return Nx*Ny;
+}
+
+int LidDrivenCavity::GetGlobalNpts() {
+    return globalNx*globalNy;
 }
 
 double LidDrivenCavity::GetLx() {
@@ -141,19 +144,23 @@ void LidDrivenCavity::GetData(double* vOut, double* sOut, double* u0Out, double*
 
 void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
 {
-    this->Lx = xlen;
-    this->Ly = ylen;
+    //global values are entered
+    globalLx = xlen;
+    globalLy = ylen;
+
+    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly);//split domain up appropriately and update local values
+
     UpdateDxDy();                                                   //update grid spacing dx dy based off new domain
 }
 
 void LidDrivenCavity::SetGridSize(int nx, int ny)
 {
-    this->Nx = nx;
-    this->Ny = ny;
-    //update global values
-    MPI_Allreduce(&Nx,&globalNx,1,MPI_INT,MPI_SUM,comm_row_grid);
-    MPI_Allreduce(&Ny,&globalNy,1,MPI_INT,MPI_SUM,comm_col_grid);   //-> note for future, is there any point in splitting Lx Ly up in main, when I'm gonna need global values anyway?
-    
+    //global values are entered
+    globalNx = nx;
+    globalNy = ny;
+
+    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly);//split domain up appropriately and update local values
+
     UpdateDxDy();                                                   //update grid spacing dx dy based off new number of grid points
 }
 
@@ -250,7 +257,7 @@ void LidDrivenCavity::PrintConfiguration()
     if((rowRank == 0) & (colRank == 0)) {
         cout << "Grid size: " << globalNx << " x " << globalNy << endl;                         //print the current problem configuration
         cout << "Spacing:   " << dx << " x " << dy << endl;
-        cout << "Length:    " << Lx << " x " << Ly << endl;
+        cout << "Length:    " << globalLx << " x " << globalLy << endl;
         cout << "Grid pts:  " << globalNx*globalNy << endl;
         cout << "Timestep:  " << dt << endl;
         cout << "Steps:     " << ceil(T/dt) << endl;
@@ -294,8 +301,8 @@ void LidDrivenCavity::CleanUp()
 
 void LidDrivenCavity::UpdateDxDy()
 {
-    dx = Lx / (globalNx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
-    dy = Ly / (globalNy-1);
+    dx = globalLx / (globalNx-1);       //calculate new spatial steps dx and dy based off current grid numbers (Nx,Ny) and domain size (Lx,Ly)
+    dy = globalLy / (globalNy-1);
     
     Npts = Nx * Ny;         //total number of grid points, locally
 }
