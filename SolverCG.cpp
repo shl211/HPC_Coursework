@@ -239,15 +239,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
         }
     }
     
-    //now receive the data, LHS RHS first as sent first
-    if(leftRank != MPI_PROC_NULL) {     //can only receive from left rank if not on left boundary
-        MPI_Recv(leftData,Ny,MPI_DOUBLE,leftRank,5,comm_row_grid,MPI_STATUS_IGNORE);            //rececive LHS data from the left process
-    }
-    
-    if(rightRank != MPI_PROC_NULL) {
-        MPI_Recv(rightData,Ny,MPI_DOUBLE,rightRank,4,comm_row_grid,MPI_STATUS_IGNORE);      //receive RHS data for current process from right process (which sent their left data)
-    }
-    
+    //now receive the data, top bottom first as sent first
     if(topRank != MPI_PROC_NULL) {
         MPI_Recv(topData, Nx, MPI_DOUBLE, topRank, 6, comm_col_grid, MPI_STATUS_IGNORE); //receive data sent down from process above, is top row of current process
     }
@@ -255,22 +247,32 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     if(bottomRank != MPI_PROC_NULL) {
         MPI_Recv(bottomData, Nx, MPI_DOUBLE, bottomRank, 7, comm_col_grid,MPI_STATUS_IGNORE);//receive data sent up from process below, is bottom row of curren t process
     }
+
+
+    if(leftRank != MPI_PROC_NULL) {     //can only receive from left rank if not on left boundary
+        MPI_Recv(leftData,Ny,MPI_DOUBLE,leftRank,5,comm_row_grid,MPI_STATUS_IGNORE);            //rececive LHS data from the left process
+    }
+    
+    if(rightRank != MPI_PROC_NULL) {
+        MPI_Recv(rightData,Ny,MPI_DOUBLE,rightRank,4,comm_row_grid,MPI_STATUS_IGNORE);      //receive RHS data for current process from right process (which sent their left data)
+    }
+
     
     //wait for send processes to complete, then free in input buffer
-    if(leftRank != MPI_PROC_NULL) { //check whetehr data send to left is complete
-        MPI_Wait(&dataToLeft,MPI_STATUS_IGNORE);
-    }
-    
-    if(rightRank != MPI_PROC_NULL) { //check whetehr data send to right is complete
-        MPI_Wait(&dataToRight,MPI_STATUS_IGNORE);
-    }
-    
     if(topRank != MPI_PROC_NULL) { //check whetehr data send up is complete
         MPI_Wait(&dataToUp,MPI_STATUS_IGNORE);
     }
     
     if(bottomRank != MPI_PROC_NULL) { //check whetehr data send down is complete
         MPI_Wait(&dataToDown,MPI_STATUS_IGNORE);
+    }
+    
+    if(leftRank != MPI_PROC_NULL) { //check whetehr data send to left is complete
+        MPI_Wait(&dataToLeft,MPI_STATUS_IGNORE);
+    }
+    
+    if(rightRank != MPI_PROC_NULL) { //check whetehr data send to right is complete
+        MPI_Wait(&dataToRight,MPI_STATUS_IGNORE);
     }
 
     //first compute the 'corners' of each process domain

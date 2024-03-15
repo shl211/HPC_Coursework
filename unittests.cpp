@@ -101,10 +101,10 @@ void CreateCartGridVerify(MPI_Comm &comm_Cart_Grid,MPI_Comm &comm_row_grid, MPI_
  * @param[out] xStart   Starting point of local domain in global domain, x direction
  * @param[out] yStart   Starting point of local domain in global domain, y direction
  */
-void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, int &localNx, int &localNy, double &localLx, double &localLy, int &xStart, int &yStart) {
+void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, 
+                        int &localNx, int &localNy, double &localLx, double &localLy, int &xStart, int &yStart) {
     
     int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
-    int rowStart,colStart;                //denotes index of where in problem domain the process accesses directly
     int rem;
     
     int worldRank, size;    
@@ -128,10 +128,10 @@ void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double glo
     
     if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
         yDomainSize++;
-        rowStart = yDomainSize * coords[0];             //index denoting starting row in local domain
+        yStart = yDomainSize * coords[0];             //index denoting starting row in local domain
     }
     else {//otherwise use minimum, and find other values
-        rowStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
+        yStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
     }
     
     //same for x dimension
@@ -139,16 +139,14 @@ void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double glo
         
     if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
         xDomainSize++;
-        colStart = xDomainSize * coords[1];             //index denoting starting column in local domain
+        xStart = xDomainSize * coords[1];             //index denoting starting column in local domain
     }
     else {//otherwise use minimum, and find other values
-        colStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
+        xStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
     }
     
     localNx = xDomainSize;
     localNy = yDomainSize;
-    xStart = colStart;
-    yStart = rowStart;
     localLx = (double) globalLx * localNx / globalNx;
     localLy = (double) globalLy * localNy / globalNy;
 }
@@ -634,6 +632,9 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
             BOOST_CHECK_SMALL(s[IDX(i,j)],tol);
         }
     }
+
+    delete[] v;
+    delete[] s;
 }
 
 /**
@@ -654,6 +655,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     double dx = 0.05;
     double dy = 0.2;
     
+    //set up MPI for solver and split domain equally
+    int worldRank; 
+    MPI_Comm_rank(MPI_COMM_WORLD,&worldRank);//get world rank
+
     //set up lid driven cavity class and configure the problem
     LidDrivenCavity test;
     test.SetDomainSize(Lx,Ly);
@@ -665,8 +670,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     test.Initialise();                              //initialise the problem
     
     std::string fileName = "testOutput";            //output initial conditions to file named testOutput
-    test.WriteSolution(fileName);
-    
+    test.WriteSolution(fileName);       //only produces one file, even in MPI
+
+    //reading data across multiple processors is okay as they have independent access
+
     std::ifstream outputFile(fileName);             //create stream for file
     BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened, if doesn't exist, terminate
     
@@ -738,13 +745,15 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     
     BOOST_CHECK(dataPoints == Nx*Ny);            //check right number of grid point data is outputted
     
-    //delete file from directory to clean up
-    if(std::remove(fileName.c_str()) == 0) {
+    //delete file from directory to clean up, use root rank only
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    /*if(std::remove(fileName.c_str()) == 0) {      //use make clean to delete the test file
         std::cout << fileName << " successfully deleted" << std::endl;
     }
     else {
         std::cout << fileName << " could not be deleted" << std::endl;
-    }
+    }/**/
 }
 
 /**
@@ -862,5 +871,4 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     else {
         std::cout << fileName << " could not be deleted" << std::endl;
     }
-}
-*/
+}*/

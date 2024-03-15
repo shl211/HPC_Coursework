@@ -219,6 +219,8 @@ private:
     int globalNy;                               ///<global Ny
     double globalLx;
     double globalLy;
+    int xDomainStart;
+    int yDomainStart;
 
     int rowRank;///<rank of current process in comm_row_grid
     int colRank;///<rank of current process in comm_col_grid
@@ -283,7 +285,10 @@ private:
      * @param[out] localNy  Domain size Ny for each local process
      * @param[out] localLx
      * @param[out] localLy
+     * @param[out] xStart
+     * @param[out] yStart
      */
-    void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, int &localNx, int &localNy, double &localLx, double &localLy) ;
+    void SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy,
+                     int &localNx, int &localNy, double &localLx, double &localLy, int &xStart, int &yStart);
 };
 

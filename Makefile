@@ -7,6 +7,7 @@ LDLIBS = -lboost_program_options -lblas
 DOXYFILE = Doxyfile
 TESTTARGET = unittests
 TESTS = unittests.cpp LidDrivenCavity.cpp SolverCG.cpp
+OTHER = testOutput integratorTest ic.txt final.txt html latex	#other files/directories that should be deleted
 
 default: $(TARGET)
 
@@ -27,4 +28,4 @@ $(TESTTARGET): $(TESTS)
 .PHONY: clean
 
 clean:
-	-rm -f *.o $(TARGET) $(TESTTARGET)
+	-rm -f *.o $(TARGET) $(TESTTARGET) $(OTHER)

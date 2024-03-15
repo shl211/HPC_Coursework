@@ -43,10 +43,10 @@ LidDrivenCavity::LidDrivenCavity()
     globalNy = Ny;
     globalLx = Lx;
     globalLy = Ly;//assign global values
-    UpdateDxDy();
 
     //now discretise grid domains
-    SplitDomainMPI(comm_Cart_grid,globalNx,globalNy,globalLx, globalLy, Nx, Ny, Lx, Ly);
+    SplitDomainMPI(comm_Cart_grid,globalNx,globalNy,globalLx, globalLy, Nx, Ny, Lx, Ly,xDomainStart,yDomainStart);
+    UpdateDxDy();
 }
 
 LidDrivenCavity::~LidDrivenCavity()
@@ -139,7 +139,7 @@ void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
     globalLx = xlen;
     globalLy = ylen;
 
-    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly);//split domain up appropriately and update local values
+    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);//split domain up appropriately and update local values
 
     UpdateDxDy();                                                   //update grid spacing dx dy based off new domain
 }
@@ -150,7 +150,7 @@ void LidDrivenCavity::SetGridSize(int nx, int ny)
     globalNx = nx;
     globalNy = ny;
 
-    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly);//split domain up appropriately and update local values
+    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);//split domain up appropriately and update local values
 
     UpdateDxDy();                                                   //update grid spacing dx dy based off new number of grid points
 }
@@ -212,35 +212,217 @@ void LidDrivenCavity::Integrate()
 
 void LidDrivenCavity::WriteSolution(std::string file)
 {
+
+    //data stored in row major format and printed in columns; can gather all data to be printed at root of each column communicator
+    double* sAllCol = new double[Nx*globalNy]();
+    double* vAllCol = new double[Nx*globalNy]();
+
+    double* u0AllCol = new double[Nx*globalNy]();         //u0 is horizontal velocities;
+    double* u1AllCol = new double[Nx*globalNy]();
+
+    //first compute velocities on all local processes before sending -> faster than gathering then calculating;
     double* u0 = new double[Nx*Ny]();                               //u0 is horizontal x velocity, initialised with zeros
     double* u1 = new double[Nx*Ny]();                               //u1 is vertical y velocity, initialised with zeros
+
+    //to compute velocities, processes only need to know data to right and above, hence only need to send down and to left
+    //note row major storage so left needs to be processed first
+
+    if(bottomRank != MPI_PROC_NULL)                  //send data downwards unlsss at teh bottom bounday
+        MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&dataToDown);            //tag = 1 -> streamfunction data sent down
+
+    cblas_dcopy(Ny,s,Nx,tempLeft,1);            //now extract left data
+    if(leftRank != MPI_PROC_NULL)               //send data left unless at the left boundary
+        MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&dataToLeft);             //tag = 2 -> streamfunction data sent left
+
+    //compute interior points for all processes while waiting for all processes to send
     for (int i = 1; i < Nx - 1; ++i) {
         for (int j = 1; j < Ny - 1; ++j) {
             u0[IDX(i,j)] =  (s[IDX(i,j+1)] - s[IDX(i,j)]) / dy;     //compute velocity in x direction at every grid point from streamfunction
             u1[IDX(i,j)] = -(s[IDX(i+1,j)] - s[IDX(i,j)]) / dx;     //compute velocity in y direction at every grid point from streamfunction
         }
     }
-    for (int i = 0; i < Nx; ++i) {
-        u0[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
+
+    //now receive the data in order of sending and use Wait to notify sender of receipt
+    if(topRank != MPI_PROC_NULL)                //all ranks but the top will receive streamfunction data from above, tag 1
+        MPI_Recv(sTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);
+
+    if(rightRank != MPI_PROC_NULL)                //all ranks but the right will receive streamfunction data from right, tag 2
+        MPI_Recv(sRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
+    
+    if(bottomRank != MPI_PROC_NULL)  //check whetehr data send down is complete
+        MPI_Wait(&dataToDown,MPI_STATUS_IGNORE);
+    
+    if(leftRank != MPI_PROC_NULL) //check whetehr data send to left is complete
+        MPI_Wait(&dataToLeft,MPI_STATUS_IGNORE);
+
+    //now compute process corners
+    //note that this implementation is slightly different to others, where four pieces of data from processes are needed, but here only two are needed
+    if((Nx == 1 )& (Ny == 1)) {//if single cell not on boundary, then need access to data from four processes
+        if(!boundaryDomain) {
+            u0[0] = (sTopData[0] - s[0]) / dy;
+            u1[0] = (sRightData[0] - s[0]) / dx;
+        }
+        else if(topRank == MPI_PROC_NULL) {//if it's on top rank, impose velocity of 1 for u0; for all other boundaries, do nothing as velocity should be zero for no slip
+            u0[0] = U;
+        }
+    }
+    else if((Nx == 1) & (Ny != 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {    //case of column vector, do nothing if on left or right boundaries
+        //compute 'top' and 'bottom' corners, unless at top/bottom boundaries
+        if(bottomRank != MPI_PROC_NULL) {
+            u0[0] = (s[1] - s[0]) / dy;
+            u1[0] = (sRightData[0] - s[0]) / dx;
+        }
+
+        if(topRank != MPI_PROC_NULL) {
+            u0[Ny-1] = (sTopData[0] - s[0]) / dy;
+            u1[Ny-1] = (sRightData[0] - s[0]) / dx;
+        }
+    }
+    else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {            //case of row vector, do nothing if top or bottom
+        //compute 'letf' and 'right' corners, unless at left/bottom boundaries
+        if(leftRank != MPI_PROC_NULL) {
+            u0[0] = (sTopData[0] - s[0]) / dy;
+            u1[0] = (s[1] - s[0]) / dx;
+        }
+
+        if(rightRank != MPI_PROC_NULL) {
+            u0[Nx-1] = (sTopData[Nx-1] - s[Nx-1]) / dy;
+            u1[Nx-1] = (sRightData[0] - s[Nx-1]) / dx;
+        }
+    }
+    else{//compute corners of general case
+
+        //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
+       if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
+            u0[IDX(0,0)] = (s[IDX(0,1)] - s[IDX(0,0)]) / dy;
+            u1[IDX(0,0)] = (s[IDX(1,0)] - s[IDX(0,0)]) / dx;
+       }
+
+        //compute bottom right corner of domain, unless process is on right or bottom boundary
+        if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+            u0[IDX(Nx-1,0)] = (s[IDX(Nx-1,1)] - s[IDX(Nx-1,0)]) / dy;
+            u1[IDX(Nx-1,0)] = (sRightData[0] - s[IDX(Nx-1,0)]) / dx;
+        }
+
+        //compute top left corner of domain, unless process is on left or top boundary
+        if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
+            u0[IDX(0,Ny-1)] = (sTopData[0] - s[IDX(0,Ny-1)]) / dy;
+            u1[IDX(0,Ny-1)] = (s[IDX(1,Ny-1)] - s[IDX(0,Ny-1)]) / dx;
+        }
+
+        //compute top right corner of domain, unless process is on right or top boundary
+        if(!((topRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+            u0[IDX(Nx-1,Ny-1)] = (sTopData[Nx-1] - s[IDX(Nx-1,Ny-1)]) / dy;
+            u1[IDX(Nx-1,Ny-1)] = (sRightData[Ny-1] - s[IDX(Nx-1,Ny-1)]) / dx;
+        }
     }
 
-    std::ofstream f(file.c_str());                                  //open/create file for output
-    std::cout << "Writing file " << file << std::endl;
-    int k = 0;
-    for (int i = 0; i < Nx; ++i)
-    {
-        for (int j = 0; j < Ny; ++j)                                //print data in columns (i.e.keep x location constant, and go down y location)
-        {
-            k = IDX(i, j);                                                  //denotes location of matrix element (i,j) in memory
-            f << i * dx << " " << j * dy << " " << vNext[k] <<  " " << s[k]     //on each line in file, print the grid location (x,y), vorticity...
-              << " " << u0[k] << " " << u1[k] << std::endl;                 //streamfunction, x velocity, y velocity at that grid location
+    //now compute process edges
+    if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+        //if column vector, don't need to do for left or right as BC already imposed along entire column
+        for(int j = 1; j < Ny - 1; ++j) {
+            u0[j] = (s[j+1] - s[j]) / dy;
+            u1[j] = (sRightData[j] - s[j]) / dx;
         }
-        f << std::endl;                                                     //After printing all (y) data for column in grid, proceed to next column...
-    }                                                                       //with a space to differentiate between each column
-    f.close();                                                      //close file
+    }
+    else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+        //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row (top BC will be imposed later)
+        for(int i = 1; i < Nx - 1; ++i) {
+            u0[i] = (sTopData[i] - s[i]) / dy;
+            u1[i] = (s[i+1] - s[i]) / dx;
+        }
+    }
+    else {  //otherwise, for teh general case, compute process edge data
+        //only compute bottom row if not at bottom of grid
+        if(bottomRank != MPI_PROC_NULL) {
+            for(int i = 1; i < Nx - 1; ++i) {
+                u0[IDX(i,0)] = (s[IDX(i,1)] - s[IDX(i,0)]) / dy;
+                u1[IDX(i,0)] = (s[IDX(i+1,0)] - s[IDX(i,0)]) / dx;
+            }
+        }
+        
+        //only compute top row if not at top of grid
+        if(topRank != MPI_PROC_NULL) {
+            for(int i = 1; i < Nx - 1; ++i) {
+                u0[IDX(i,Ny-1)] = (sTopData[i] - s[IDX(i,Ny-1)]) / dy;
+                u1[IDX(i,Ny-1)] = (s[IDX(i+1,Ny-1)] - s[IDX(i,Ny-1)]) / dx;
+            }
+        }
+        
+        //only compute left column if not at left of grid
+        if(leftRank != MPI_PROC_NULL) {
+            for(int j = 1; j < Ny - 1; ++j) {
+                u0[IDX(0,j)] = (s[IDX(0,j+1)] - s[IDX(0,j)]) / dy;
+                u1[IDX(0,j)] = (s[IDX(1,j)] - s[IDX(0,j)]) / dx;
+            }
+        }
+        
+        //only compute right coluymn if not at right of grid
+        if(rightRank != MPI_PROC_NULL) {
+            for(int j = 1; j < Ny - 1; ++j) {
+                u0[IDX(Nx-1,j)] =  (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j)]) / dy;
+                u1[IDX(Nx-1,j)] = (sRightData[j] - s[IDX(Nx-1,j)]) / dx;
+            }
+        }
+    }
 
-    delete[] u0;                                                    //deallocate memory
+    //now impose top BC
+    if(topRank == MPI_PROC_NULL) {
+        for (int i = 0; i < Nx; ++i) {
+            u0[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
+        }
+    }
+
+    //send local data for s and v of each process to correct place in root column; AllCol now data for that process column
+    //column ranks are ordered, so all ranks at bottom of grid have comm_col_grid rank of 0;they can communicate via the row communicator
+    MPI_Gather(s,Npts,MPI_DOUBLE,sAllCol+yDomainStart*Nx,Npts,MPI_DOUBLE,0,comm_col_grid);       
+    MPI_Gather(vNext,Npts,MPI_DOUBLE,vAllCol+yDomainStart*Nx,Npts,MPI_DOUBLE,0,comm_col_grid);       
+
+    MPI_Gather(u0,Npts,MPI_DOUBLE,u0AllCol+yDomainStart*Nx,Npts,MPI_DOUBLE,0,comm_col_grid);       
+    MPI_Gather(u1,Npts,MPI_DOUBLE,u1AllCol+yDomainStart*Nx,Npts,MPI_DOUBLE,0,comm_col_grid);   
+
+    delete[] u0;
     delete[] u1;
+
+    //only root column ranks have data to write into file
+    if(colRank == 0) {
+        std::ofstream f; // Declare ofstream for all column processes that will print data
+        int goAheadMessage = 0;//if = 1, then process can write data into file
+
+        //data should be ordered from 0 to end and use row communicator
+        if(rowRank == 0) {//for row rank 0 that prints data first, open file to overwrite
+            f.open(file.c_str(),std::ios::trunc);                                  //open/create file for output
+            std::cout << "Writing file " << file << std::endl;//only write on one rank
+        }
+        else{//all others wait until LHS done printing
+            MPI_Recv(&goAheadMessage,1,MPI_INT,leftRank,10,comm_row_grid,MPI_STATUS_IGNORE);//blocking, force to wait until previous columns are written
+            f.open(file.c_str(),std::ios::app);//open file to append data
+        }
+        
+        int k = 0;
+        for (int i = 0; i < Nx; ++i)
+        {
+            for (int j = 0; j < globalNy; ++j)                                //print data in columns (i.e.keep x location constant, and go down y location)
+            {
+                k = IDX(i, j);                                                  //denotes location of matrix element (i,j) in memory
+                f << (i + xDomainStart) * dx << " " << (j + yDomainStart) * dy 
+                << " " << vAllCol[k] <<  " " << sAllCol[k]                              //on each line in file, print the grid location (x,y), vorticity...
+                << " " << u0AllCol[k] << " " << u1AllCol[k] << std::endl;                 //streamfunction, x velocity, y velocity at that grid location
+            }
+            f << std::endl;                                                     //After printing all (y) data for column in grid, proceed to next column...
+        }                                                                       //with a space to differentiate between each column
+        f.close();                                                      //close file
+
+        goAheadMessage = 1;//writing done for this process, tell next process to go
+        MPI_Send(&goAheadMessage,1,MPI_INT,rightRank,10,comm_row_grid);
+    }
+
+    delete[] sAllCol;
+    delete[] vAllCol;
+    delete[] u0AllCol;
+    delete[] u1AllCol;
+
+    MPI_Barrier(MPI_COMM_WORLD);//wait for all processes to finish writing
 }
 
 void LidDrivenCavity::PrintConfiguration()
@@ -843,10 +1025,10 @@ void LidDrivenCavity::CreateCartGrid(MPI_Comm &cartGrid,MPI_Comm &rowGrid, MPI_C
     MPI_Cart_sub(cartGrid, keep, &colGrid);
 }
 
-void LidDrivenCavity::SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, int &localNx, int &localNy, double &localLx, double &localLy) {
+void LidDrivenCavity::SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, 
+                                    int &localNx, int &localNy, double &localLx, double &localLy, int &xStart, int &yStart) {
     
     int xDomainSize,yDomainSize;                        //local domain sizes in each direction, or local Nx and Ny
-    int rowStart,colStart;                //denotes index of where in problem domain the process accesses directly
     int rem;
     
     int worldRank, size;    
@@ -870,10 +1052,10 @@ void LidDrivenCavity::SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy,
     
     if(coords[0] < rem) {//safer to use coordinates (row) than rank, which could be reordered, if coord(row)< remainder, use minimum + 1
         yDomainSize++;
-        rowStart = yDomainSize * coords[0];             //index denoting starting row in local domain
+        yStart = yDomainSize * coords[0];             //index denoting starting row in local domain
     }
     else {//otherwise use minimum, and find other values
-        rowStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
+        yStart = (yDomainSize + 1) * rem + yDomainSize * (coords[0] - rem);           //starting row accounts for previous processes with +1 rows and +0 rows
     }
     
     //same for x dimension
@@ -881,15 +1063,16 @@ void LidDrivenCavity::SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy,
         
     if(coords[1] < rem) {//safer to use coordinates (column) than rank, which could be reordered, if coord(column)< remainder, use minimum + 1
         xDomainSize++;
-        colStart = xDomainSize * coords[1];             //index denoting starting column in local domain
+        xStart = xDomainSize * coords[1];             //index denoting starting column in local domain
     }
     else {//otherwise use minimum, and find other values
-        colStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
+        xStart = (xDomainSize + 1) * rem + xDomainSize * (coords[1] - rem);           //starting column accounts for previous processes with +1 rows and +0 rows
     }
     
     localNx = xDomainSize;
     localNy = yDomainSize;
     localLx = (double) globalLx *localNx/globalNx;
     localLy = (double) globalLy * localNy/globalNy;
+
 }
 
