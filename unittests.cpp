@@ -814,8 +814,8 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
     double Lx   = 1;
     double Ly   = 1;
     double Re   = 1000;
-    double dx = 0.005;                     //for reference, step sizes
-    double dy = 0.005;
+    //double dx = 0.005;                     //for reference, step sizes
+    //double dy = 0.005;
     //nu * dt/dx/dy = 0.2 < 0.25            //for reference, check the step size limit is smaller than 0.25
        
     int localNx = Nx;//so that IDX can be used

@@ -368,7 +368,6 @@ void LidDrivenCavity::WriteSolution(std::string file)
     if(topRank == MPI_PROC_NULL) {
         for (int i = 0; i < Nx; ++i) {
             u0[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
-            cout << "Globally storing Row,Col rank = (" << xDomainStart+i << "," << yDomainStart+Ny << ") storing " << U << endl;
         }
     }
 
@@ -652,7 +651,7 @@ void LidDrivenCavity::Advance()
         
         if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
         //don't repeat calculation for top left corner of process domain if process is at the top or left of grid (BC already imposed)
-            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Nx-1])       //top left, corresponds to last entry of left data
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Ny-1])       //top left, corresponds to last entry of left data
                         + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                      //and first entry of top data
         }
         
@@ -749,18 +748,18 @@ void LidDrivenCavity::Advance()
     }
     
     //receive the vorticity data
-    if(leftRank != MPI_PROC_NULL) {               //all ranks but the left will receive vorticity data from left, tag 3
-        MPI_Recv(vLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);
-    }
-    if(rightRank != MPI_PROC_NULL) {               //all ranks but the right will receive vorticity data from right, tag 2
-        MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
-    }
-    //receive top and bottom vorticity data 
     if(topRank != MPI_PROC_NULL) {               //all ranks but the top will receive vorticity data from above, tag 1
         MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);
     }
     if(bottomRank != MPI_PROC_NULL) {                  //all ranks but the bottom will receive vorticity data from below, tag 0
         MPI_Recv(vBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);
+    }
+
+    if(leftRank != MPI_PROC_NULL) {               //all ranks but the left will receive vorticity data from left, tag 3
+        MPI_Recv(vLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);
+    }
+    if(rightRank != MPI_PROC_NULL) {               //all ranks but the right will receive vorticity data from right, tag 2
+        MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
     }
 
     //use wait to confirm receipt
@@ -834,7 +833,7 @@ void LidDrivenCavity::Advance()
             vNext[IDX(0,0)] = v[IDX(0,0)] + dt*(                            //compute bottom left corner, access left and bottom
                 ( (s[IDX(1,0)] - sLeftData[0]) * 0.5 * dxi
                  *(v[IDX(0,1)] - vBottomData[0]) * 0.5 * dyi)
-                - ( (s[IDX(1,0)] - sBottomData[0]) * 0.5 * dyi
+                - ( (s[IDX(0,1)] - sBottomData[0]) * 0.5 * dyi
                 *(v[IDX(1,0)] - vLeftData[0]) * 0.5 * dxi)
                 + nu * (v[IDX(1,0)] - 2.0 * v[IDX(0,0)] + vLeftData[0])*dx2i
                 + nu * (v[IDX(0,1)] - 2.0 * v[IDX(0,0)] + vBottomData[0])*dy2i);
@@ -900,13 +899,13 @@ void LidDrivenCavity::Advance()
         
         if(bottomRank != MPI_PROC_NULL) {   //only compute bottom row if not at bottom of grid
             for (int i = 1; i < Nx - 1; ++i) {                                      //bottom row, needs access to bottom
-            vNext[IDX(i,0)] = v[IDX(i,0)] + dt*(
-                    ( (s[IDX(i+1,0)] - s[IDX(i-1,0)]) * 0.5 * dxi
-                        *(v[IDX(i,1)] - vBottomData[i]) * 0.5 * dyi)
-                    - ( (s[IDX(i,1)] - sBottomData[i]) * 0.5 * dyi
-                        *(v[IDX(i+1,0)] - v[IDX(i-1,0)]) * 0.5 * dxi)
-                    + nu * (v[IDX(i+1,0)] - 2.0 * v[IDX(i,0)] + v[IDX(i-1,0)])*dx2i
-                    + nu * (v[IDX(i,1)] - 2.0 * v[IDX(i,0)] + vBottomData[i])*dy2i);
+                vNext[IDX(i,0)] = v[IDX(i,0)] + dt*(
+                        ( (s[IDX(i+1,0)] - s[IDX(i-1,0)]) * 0.5 * dxi
+                            *(v[IDX(i,1)] - vBottomData[i]) * 0.5 * dyi)
+                        - ( (s[IDX(i,1)] - sBottomData[i]) * 0.5 * dyi
+                            *(v[IDX(i+1,0)] - v[IDX(i-1,0)]) * 0.5 * dxi)
+                        + nu * (v[IDX(i+1,0)] - 2.0 * v[IDX(i,0)] + v[IDX(i-1,0)])*dx2i
+                        + nu * (v[IDX(i,1)] - 2.0 * v[IDX(i,0)] + vBottomData[i])*dy2i);
             }
         }
         
@@ -938,8 +937,8 @@ void LidDrivenCavity::Advance()
             for (int j = 1; j < Ny - 1; ++j) {                                          
                 vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)] + dt*(                             //right column, needs access to right
                     ( (sRightData[j] - s[IDX(Nx-2,j)]) * 0.5 * dxi
-                    *(v[IDX(Nx-2,j+1)] - v[IDX(Nx-2,j-1)]) * 0.5 * dyi)
-                    - ( (s[IDX(Nx-2,j+1)] - s[IDX(Nx-2,j-1)]) * 0.5 * dyi
+                    *(v[IDX(Nx-1,j+1)] - v[IDX(Nx-1,j-1)]) * 0.5 * dyi)
+                    - ( (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]) * 0.5 * dyi
                     *(vRightData[j] - v[IDX(Nx-2,j)]) * 0.5 * dxi)
                     + nu * (vRightData[j] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-2,j)])*dx2i
                     + nu * (v[IDX(Nx-1,j+1)] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-1,j-1)])*dy2i);
