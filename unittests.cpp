@@ -329,6 +329,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     BOOST_CHECK_CLOSE(test.GetDt(), dt, tol);
     BOOST_CHECK_CLOSE(test.GetT(), T, tol);
     BOOST_CHECK_CLOSE(test.GetRe(), Re, tol);
+    BOOST_CHECK_CLOSE(test.GetU(), U, tol);
     BOOST_CHECK_CLOSE(test.GetNu(),nu,tol);
     BOOST_CHECK_CLOSE(test.GetDx(),dx,tol);
     BOOST_CHECK_CLOSE(test.GetDy(),dy,tol);
@@ -391,7 +392,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
     BOOST_REQUIRE( abs(test.GetGlobalLy() - Ly) < tol);
     BOOST_REQUIRE( test.GetGlobalNx() == Nx);
     BOOST_REQUIRE( test.GetGlobalNy() == Ny);
-    BOOST_REQUIRE( test.GetGlobalNpts() == Nx * Ny);
+    BOOST_REQUIRE( test.GetGlobalNpts() == Npts);
 }
 
 /**
@@ -436,7 +437,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
     BOOST_REQUIRE( abs(test.GetGlobalLy() - Ly) < tol);
     BOOST_REQUIRE( test.GetGlobalNx() == Nx);
     BOOST_REQUIRE( test.GetGlobalNy() == Ny);
-    BOOST_REQUIRE( test.GetGlobalNpts() == Nx * Ny);
+    BOOST_REQUIRE( test.GetGlobalNpts() == Npts);
 }
 
 /**
@@ -559,7 +560,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
     std::string output = terminalOutput.str();
 
     //root rank should print
-    if(rowRank == 0 & colRank == 0) {
+    if((rowRank == 0) & (colRank == 0)) {
         BOOST_REQUIRE(output.find(configGridSize) != std::string::npos);
         BOOST_REQUIRE(output.find(configSpacing) != std::string::npos);
         BOOST_REQUIRE(output.find(configLength) != std::string::npos);
@@ -596,7 +597,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
     double Re   = 100;
     //double dx = 0.05;
     //double dy = 0.2;
-    
+
    //split the domain and compute what each MPI communicator data should be for initialise
     MPI_Comm grid,row,col;
     int localNx,localNy,xStart,yStart;
@@ -621,17 +622,25 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
     
     double* v = new double[localNpts];
     double* s = new double[localNpts];//v and s should be zero
-    double tol = 1e-6;
     
     test.GetData(v,s);
-    
-    //initialise implies zero for all values
-    for(int j = yStart; j < yStart + localNy; ++j) {
-        for(int i = xStart; i < xStart + localNx; ++i) {
-            BOOST_CHECK_SMALL(v[IDX(i,j)],tol);
-            BOOST_CHECK_SMALL(s[IDX(i,j)],tol);
-        }
-    }
+
+    //initialise implies zeros for all values, so norm v and norm s give the error norm
+    double tol = 1e-6;
+    double globalErrorV,globalErrorS;
+    double eV = cblas_dnrm2(localNpts,v,1);
+    double eS = cblas_dnrm2(localNpts,s,1);
+    eV *= eV;
+    eS *= eS;
+
+    MPI_Allreduce(&eV,&globalErrorV,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+    MPI_Allreduce(&eS,&globalErrorS,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
+
+    globalErrorV = sqrt(globalErrorV);
+    globalErrorS = sqrt(globalErrorS);
+
+    BOOST_CHECK(globalErrorS < tol);
+    BOOST_CHECK(globalErrorV < tol);
 
     delete[] v;
     delete[] s;
@@ -652,9 +661,28 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     double Lx   = 1.0;
     double Ly   = 2.0;
     double Re   = 100;
+    double U = 1;
     double dx = 0.05;
     double dy = 0.2;
+
+    int localNx = Nx;//so that IDX can be used
     
+    //expect the following values, while vy, s and v should all be zero
+    double* x = new double[Nx*Ny];
+    double* y = new double[Nx*Ny];
+    double* vx = new double[Nx*Ny]();
+
+    for(int i = 0; i < Nx; ++i) {
+        for(int j = 0; j < Ny; ++j) {
+            x[IDX(i,j)] = i*dx;
+            y[IDX(i,j)] = j*dy;
+        }
+    }
+
+    for(int i = 0; i < Nx; ++i) {
+        vx[IDX(i,Ny-1)] = U;
+    }
+
     //set up MPI for solver and split domain equally
     int worldRank; 
     MPI_Comm_rank(MPI_COMM_WORLD,&worldRank);//get world rank
@@ -668,13 +696,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     test.SetReynoldsNumber(Re);
     
     test.Initialise();                              //initialise the problem
-    
     std::string fileName = "testOutput";            //output initial conditions to file named testOutput
-    test.WriteSolution(fileName);       //only produces one file, even in MPI
+    test.WriteSolution(fileName);                   //only produces one file, even in MPI
 
-    //reading data across multiple processors is okay as they have independent access
-
-    std::ifstream outputFile(fileName);             //create stream for file
+    std::ifstream outputFile(fileName);             //create stream for file, reading data across multiple processors is okay as they have independent access
     BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened, if doesn't exist, terminate
     
     //read data from file and check initial conditions -> verifies WriteSolution();
@@ -683,13 +708,19 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     
     std::string line;                                               //variable to capture line of data from file
     std::string xData,yData,vData,sData,vxData,vyData;              //temporary string variables
-    double x,y,v,s,vx,vy;                                           //temporary double variables
     
+    double* xDataSet = new double[Nx*Ny];
+    double* yDataSet = new double[Nx*Ny];
+    double* vDataSet = new double[Nx*Ny];
+    double* sDataSet = new double[Nx*Ny];
+    double* vxDataSet = new double[Nx*Ny];
+    double* vyDataSet = new double[Nx*Ny];
+
     int i = 0;                                                      //denote matrix index i,j
     int j = 0;
     int dataPoints = 0;                     //counter to track number of data points printed, should equal Nx*Ny
     unsigned int dataCol = 0;               //conter for number of columns per row, should be 6
-   
+
     while(std::getline(outputFile,line)) {          //while file is open
         
         if(line.empty()) {
@@ -709,28 +740,13 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
         //now read data into correct place
         std::stringstream data(line);
         data >> xData >> yData >> vData >> sData >> vxData >> vyData;
-        
-        x = std::stod(xData);
-        y = std::stod(yData);
-        v = std::stod(vData);
-        s = std::stod(sData);
-        vx = std::stod(vxData);
-        vy = std::stod(vyData);
-        
-        BOOST_CHECK_CLOSE(x,i*dx,1e-6);        //cehck x and y data printed in correct format, column by column
-        BOOST_CHECK_CLOSE(y,j*dy,1e-6);
-        
-        BOOST_CHECK_CLOSE(v,0.0,1e-6);         //vorticity and streamfunction should be zero everywhere
-        BOOST_CHECK_CLOSE(s,0.0,1e-6);
-                                                //check velocity x and y are zeros; if top surface, then vx = 1
-        if( std::abs(y - Ly) < 1e-6) {          //check if top surface via tolerance as it is double format, tolerance must be << dy
-            BOOST_CHECK_CLOSE(vx,1.0,1e-6);     
-            BOOST_CHECK_CLOSE(vy,0.0,1e-6);
-        }
-        else {
-            BOOST_CHECK_CLOSE(vx,0.0,1e-6);
-            BOOST_CHECK_CLOSE(vy,0.0,1e-6);
-        }
+
+        xDataSet[IDX(i,j)] = std::stod(xData);
+        yDataSet[IDX(i,j)] = std::stod(yData);
+        vDataSet[IDX(i,j)] = std::stod(vData);
+        sDataSet[IDX(i,j)] = std::stod(sData);
+        vxDataSet[IDX(i,j)] = std::stod(vxData);
+        vyDataSet[IDX(i,j)] = std::stod(vyData);
         
         dataPoints++;                           //log one more data point
         
@@ -742,11 +758,40 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
         }
     }
     outputFile.close();                          //close the file
-    
+
     BOOST_CHECK(dataPoints == Nx*Ny);            //check right number of grid point data is outputted
     
-    //delete file from directory to clean up, use root rank only
-    MPI_Barrier(MPI_COMM_WORLD);
+    //compute global errors
+    cblas_daxpy(Nx*Ny,-1.0,x,1,xDataSet,1);
+    cblas_daxpy(Nx*Ny,-1.0,y,1,yDataSet,1);
+    cblas_daxpy(Nx*Ny,-1.0,vx,1,vxDataSet,1);    //reference for all other variables is 0, so no need to compute error vector
+
+    double xError = cblas_dnrm2(Nx*Ny,xDataSet,1);
+    double yError = cblas_dnrm2(Nx*Ny,yDataSet,1);
+    double vxError = cblas_dnrm2(Nx*Ny,vxDataSet,1);
+    double vyError = cblas_dnrm2(Nx*Ny,vyDataSet,1);
+    double sError = cblas_dnrm2(Nx*Ny,sDataSet,1);
+    double vError = cblas_dnrm2(Nx*Ny,vDataSet,1);
+    cout << "vxError = " << vxError << endl;
+
+    //check within tolerance
+    double tol = 1e-6;
+    BOOST_CHECK(xError < tol);
+    BOOST_CHECK(yError < tol);
+    BOOST_CHECK(vxError < tol);
+    BOOST_CHECK(vyError < tol);
+    BOOST_CHECK(sError < tol);
+    BOOST_CHECK(vError < tol);
+
+    delete[] xDataSet;
+    delete[] yDataSet;
+    delete[] vDataSet;
+    delete[] sDataSet;
+    delete[] vxDataSet;
+    delete[] vyDataSet;
+    delete[] x;
+    delete[] y;
+    delete[] vx;
 
     /*if(std::remove(fileName.c_str()) == 0) {      //use make clean to delete the test file
         std::cout << fileName << " successfully deleted" << std::endl;
@@ -762,13 +807,13 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
  */
 /*BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator) 
 {
-    //take previous working test case, same representations as before
+    //take a case where steady state is reached -> rule of thumb, fluid should pass through at least 10 times to reach SS
     double dt   = 0.01;
-    double T    = 0.05;
-    int    Nx   = 101;
-    int    Ny   = 101;
-    double Lx   = 1.0;
-    double Ly   = 1.0;
+    double T    = 20;
+    int    Nx   = 201;
+    int    Ny   = 201;
+    double Lx   = 2;
+    double Ly   = 2;
     double Re   = 1000;
     //double dx = 0.01;                     //for reference, step sizes
     //double dy = 0.01;

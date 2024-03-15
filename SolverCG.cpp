@@ -276,7 +276,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     }
 
     //first compute the 'corners' of each process domain
-    if(Nx == 1 & Ny == 1 & !boundaryDomain) {//if single cell not on boundary, then need access to data from four processes
+    if((Nx == 1) &( Ny == 1) & !boundaryDomain) {//if single cell not on boundary, then need access to data from four processes
         out[0] = ( - leftData[0] + 2.0*in[0] - rightData[0] ) * dx2i
                 + (- bottomData[0] + 2*in[0] - topData[0] ) * dy2i; 
     }
