@@ -947,9 +947,9 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
         cout << "vError = " << vError << endl;
         cout << "sError = " << sError << endl;
     
-    
+
     //check within tolerance
-    double tol = 1e-2;
+    double tol = 1e-3;
     BOOST_CHECK(xError < tol);
     BOOST_CHECK(yError < tol);
     BOOST_CHECK(vxError < tol);

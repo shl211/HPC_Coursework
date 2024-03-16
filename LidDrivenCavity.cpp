@@ -258,7 +258,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
     if((Nx == 1 )& (Ny == 1)) {//if single cell not on boundary, then need access to data from four processes
         if(!boundaryDomain) {
             u0[0] = (sTopData[0] - s[0]) / dy;
-            u1[0] = (sRightData[0] - s[0]) / dx;
+            u1[0] = - (sRightData[0] - s[0]) / dx;
         }
         else if(topRank == MPI_PROC_NULL) {//if it's on top rank, impose velocity of 1 for u0; for all other boundaries, do nothing as velocity should be zero for no slip
             u0[0] = U;
@@ -268,24 +268,24 @@ void LidDrivenCavity::WriteSolution(std::string file)
         //compute 'top' and 'bottom' corners, unless at top/bottom boundaries
         if(bottomRank != MPI_PROC_NULL) {
             u0[0] = (s[1] - s[0]) / dy;
-            u1[0] = (sRightData[0] - s[0]) / dx;
+            u1[0] = - (sRightData[0] - s[0]) / dx;
         }
 
         if(topRank != MPI_PROC_NULL) {
             u0[Ny-1] = (sTopData[0] - s[0]) / dy;
-            u1[Ny-1] = (sRightData[0] - s[0]) / dx;
+            u1[Ny-1] = - (sRightData[0] - s[0]) / dx;
         }
     }
     else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {            //case of row vector, do nothing if top or bottom
         //compute 'letf' and 'right' corners, unless at left/bottom boundaries
         if(leftRank != MPI_PROC_NULL) {
             u0[0] = (sTopData[0] - s[0]) / dy;
-            u1[0] = (s[1] - s[0]) / dx;
+            u1[0] = - (s[1] - s[0]) / dx;
         }
 
         if(rightRank != MPI_PROC_NULL) {
             u0[Nx-1] = (sTopData[Nx-1] - s[Nx-1]) / dy;
-            u1[Nx-1] = (sRightData[0] - s[Nx-1]) / dx;
+            u1[Nx-1] = - (sRightData[0] - s[Nx-1]) / dx;
         }
     }
     else{//compute corners of general case
@@ -293,25 +293,25 @@ void LidDrivenCavity::WriteSolution(std::string file)
         //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
        if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
             u0[IDX(0,0)] = (s[IDX(0,1)] - s[IDX(0,0)]) / dy;
-            u1[IDX(0,0)] = (s[IDX(1,0)] - s[IDX(0,0)]) / dx;
+            u1[IDX(0,0)] = - (s[IDX(1,0)] - s[IDX(0,0)]) / dx;
        }
 
         //compute bottom right corner of domain, unless process is on right or bottom boundary
         if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
             u0[IDX(Nx-1,0)] = (s[IDX(Nx-1,1)] - s[IDX(Nx-1,0)]) / dy;
-            u1[IDX(Nx-1,0)] = (sRightData[0] - s[IDX(Nx-1,0)]) / dx;
+            u1[IDX(Nx-1,0)] = - (sRightData[0] - s[IDX(Nx-1,0)]) / dx;
         }
 
         //compute top left corner of domain, unless process is on left or top boundary
         if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
             u0[IDX(0,Ny-1)] = (sTopData[0] - s[IDX(0,Ny-1)]) / dy;
-            u1[IDX(0,Ny-1)] = (s[IDX(1,Ny-1)] - s[IDX(0,Ny-1)]) / dx;
+            u1[IDX(0,Ny-1)] = - (s[IDX(1,Ny-1)] - s[IDX(0,Ny-1)]) / dx;
         }
 
         //compute top right corner of domain, unless process is on right or top boundary
         if(!((topRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
             u0[IDX(Nx-1,Ny-1)] = (sTopData[Nx-1] - s[IDX(Nx-1,Ny-1)]) / dy;
-            u1[IDX(Nx-1,Ny-1)] = (sRightData[Ny-1] - s[IDX(Nx-1,Ny-1)]) / dx;
+            u1[IDX(Nx-1,Ny-1)] = - (sRightData[Ny-1] - s[IDX(Nx-1,Ny-1)]) / dx;
         }
     }
 
@@ -320,14 +320,14 @@ void LidDrivenCavity::WriteSolution(std::string file)
         //if column vector, don't need to do for left or right as BC already imposed along entire column
         for(int j = 1; j < Ny - 1; ++j) {
             u0[j] = (s[j+1] - s[j]) / dy;
-            u1[j] = (sRightData[j] - s[j]) / dx;
+            u1[j] = - (sRightData[j] - s[j]) / dx;
         }
     }
     else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
         //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row (top BC will be imposed later)
         for(int i = 1; i < Nx - 1; ++i) {
             u0[i] = (sTopData[i] - s[i]) / dy;
-            u1[i] = (s[i+1] - s[i]) / dx;
+            u1[i] = - (s[i+1] - s[i]) / dx;
         }
     }
     else {  //otherwise, for teh general case, compute process edge data
@@ -335,7 +335,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         if(bottomRank != MPI_PROC_NULL) {
             for(int i = 1; i < Nx - 1; ++i) {
                 u0[IDX(i,0)] = (s[IDX(i,1)] - s[IDX(i,0)]) / dy;
-                u1[IDX(i,0)] = (s[IDX(i+1,0)] - s[IDX(i,0)]) / dx;
+                u1[IDX(i,0)] = - (s[IDX(i+1,0)] - s[IDX(i,0)]) / dx;
             }
         }
         
@@ -343,7 +343,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         if(topRank != MPI_PROC_NULL) {
             for(int i = 1; i < Nx - 1; ++i) {
                 u0[IDX(i,Ny-1)] = (sTopData[i] - s[IDX(i,Ny-1)]) / dy;
-                u1[IDX(i,Ny-1)] = (s[IDX(i+1,Ny-1)] - s[IDX(i,Ny-1)]) / dx;
+                u1[IDX(i,Ny-1)] = - (s[IDX(i+1,Ny-1)] - s[IDX(i,Ny-1)]) / dx;
             }
         }
         
@@ -351,7 +351,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         if(leftRank != MPI_PROC_NULL) {
             for(int j = 1; j < Ny - 1; ++j) {
                 u0[IDX(0,j)] = (s[IDX(0,j+1)] - s[IDX(0,j)]) / dy;
-                u1[IDX(0,j)] = (s[IDX(1,j)] - s[IDX(0,j)]) / dx;
+                u1[IDX(0,j)] = - (s[IDX(1,j)] - s[IDX(0,j)]) / dx;
             }
         }
         
@@ -359,7 +359,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         if(rightRank != MPI_PROC_NULL) {
             for(int j = 1; j < Ny - 1; ++j) {
                 u0[IDX(Nx-1,j)] =  (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j)]) / dy;
-                u1[IDX(Nx-1,j)] = (sRightData[j] - s[IDX(Nx-1,j)]) / dx;
+                u1[IDX(Nx-1,j)] = - (sRightData[j] - s[IDX(Nx-1,j)]) / dx;
             }
         }
     }
@@ -1002,28 +1002,12 @@ void LidDrivenCavity::Advance()
         for(int i = 0; i < Nx; ++i) {
             vNext[IDX(i,0)] = v[IDX(i,0)];
         }
-
-        /*if(leftRank != MPI_PROC_NULL) { //if not bottom left boundary, also copy
-            vNext[IDX(0,0)] = v[IDX(0,0)];
-        }
-
-        if(rightRank != MPI_PROC_NULL) {
-            vNext[IDX(Nx-1,0)] = v[IDX(Nx-1,0)];
-        }*/
     }
     
     if(topRank == MPI_PROC_NULL) {              //assign top BC
         for(int i = 0; i < Nx; ++i) {
             vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)];
         }
-        
-        /*if(leftRank != MPI_PROC_NULL) { //if not top left boundary, also copy
-            vNext[IDX(0,Ny-1)] = v[IDX(0,Ny-1)];
-        }
-
-        if(rightRank != MPI_PROC_NULL) {
-            vNext[IDX(Nx-1,Ny-1)] = v[IDX(Nx-1,Ny-1)];
-        }*/
     }
     
     //impose left right BCs
@@ -1031,39 +1015,14 @@ void LidDrivenCavity::Advance()
         for(int j = 0; j < Ny; ++j) {
             vNext[IDX(0,j)] = v[IDX(0,j)];
         }
-
-        /*if(topRank != MPI_PROC_NULL) {//if not top left boundary, also copy
-            vNext[IDX(0,Ny-1)] = v[IDX(0,Ny-1)];
-        }
-
-        if(bottomRank != MPI_PROC_NULL) {
-            vNext[IDX(0,0)] = v[IDX(0,0)];
-        }*/
     }
     
     if(rightRank == MPI_PROC_NULL) {              //assign right BC
         for(int j = 0; j < Ny; ++j) {
             vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)];
         }
-        /*if(topRank != MPI_PROC_NULL) {//if not top right boundary, also copy
-            vNext[IDX(Nx-1,Ny-1)] = v[IDX(Nx-1,Ny-1)];
-        }
-
-        if(bottomRank != MPI_PROC_NULL) {
-            vNext[IDX(Nx-1,0)] = v[IDX(Nx-1,0)];
-        }*/
     }
 
-
-
-    /*if(rowRank ==0  & colRank == 0) {
-        for(int i = 0; i < Nx*Ny; ++i) {
-            cout << "v[" << i << "] = " << vNext[i] << endl;
-        }
-        cout << "New Step" << endl;
-    }
-    MPI_Barrier(MPI_COMM_WORLD);*/
-    
     // Solve Poisson problem
     cg->Solve(vNext, s);
 }
