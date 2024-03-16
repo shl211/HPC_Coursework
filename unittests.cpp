@@ -19,11 +19,11 @@
 #include "SolverCG.h"
 
 /**
- * @brief Macro to map matrix entry i,j onto it's corresponding location in memory, assuming column-wise matrix storage
- * @param I     matrix index i denoting the ith row
- * @param J     matrix index j denoting the jth columns
+ * @brief Macro to map coordinates (i,j) onto it's corresponding location in memory, assuming row-wise matrix storage
+ * @param I     coordinate i denoting horizontal position of grid from left to right
+ * @param J     coordinate j denoting vertical position of grid from bottom to top
  */
-#define IDX(I,J) ((J)*localNx + (I))                     //define a new operation to improve computation?
+#define IDX(I,J) ((J)*localNx + (I))
 
 struct MPISetUp {
     MPISetUp() {

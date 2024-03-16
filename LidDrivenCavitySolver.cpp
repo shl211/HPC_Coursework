@@ -10,6 +10,7 @@ namespace po = boost::program_options;
 
 /**
  * @brief Main program that allows for user specification of problem followed by implementation of solver
+ * @warning MPI ranks must satisfy \f$ P = p^2 \f$, otherwise program will terminate
  *********************************************************************************************************************/
 int main(int argc, char* argv[])
 {
