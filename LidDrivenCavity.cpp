@@ -9,24 +9,22 @@ using namespace std;
 #include <mpi.h>
 
 /**
- * @brief Macro to map matrix entry i,j onto it's corresponding location in memory, assuming column-wise matrix storage
- * @param I     matrix index i denoting the ith row
- * @param J     matrix index j denoting the jth columns
+ * @brief Macro to map coordinates (i,j) onto it's corresponding location in memory, assuming row-wise matrix storage
+ * @param I     coordinate i denoting horizontal position of grid from left to right
+ * @param J     coordinate j denoting vertical position of grid from bottom to top
  */
-#define IDX(I,J) ((J)*Nx + (I))                     //define a new operation to improve computation?
+#define IDX(I,J) ((J)*Nx + (I))
 
 #include "LidDrivenCavity.h"
 #include "SolverCG.h"
 
 LidDrivenCavity::LidDrivenCavity()
 {
-
-    CreateCartGrid(comm_Cart_grid,comm_row_grid,comm_col_grid);        //create communicataors
-
-    MPI_Comm_size(comm_row_grid,&size);     //get size of communicator
+    //create Cartesian communicator and row and column communicators, also assigns size of row/column communicators
+    CreateCartGrid(comm_Cart_grid,comm_row_grid,comm_col_grid);
     
-    //compute ranks along the row communciator and along the column communicator
-    MPI_Comm_rank(comm_row_grid, &rowRank);
+    //compute ranks along the row communciator and the column communicator
+    MPI_Comm_rank(comm_row_grid, &rowRank);                             
     MPI_Comm_rank(comm_col_grid, &colRank);
 
     //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
@@ -36,15 +34,15 @@ LidDrivenCavity::LidDrivenCavity()
     if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL))
         boundaryDomain = false;
     else
-        boundaryDomain = true;      //check whether the current process is on the edge of the grid/cavity    
+        boundaryDomain = true;                                      //check whether the current process is on the edge of the global grid domain
 
     //first discretise the default domain into grids, in unlikely case default case is used
     globalNx = Nx;
     globalNy = Ny;
     globalLx = Lx;
-    globalLy = Ly;//assign global values
+    globalLy = Ly;                                                  //assign global values
 
-    //now discretise grid domains
+    //now discretise grid domains and update values appropriately
     SplitDomainMPI(comm_Cart_grid,globalNx,globalNy,globalLx, globalLy, Nx, Ny, Lx, Ly,xDomainStart,yDomainStart);
     UpdateDxDy();
 }
@@ -54,7 +52,6 @@ LidDrivenCavity::~LidDrivenCavity()
     CleanUp();                                                      //deallocate memory
 }
 
-    //getting functions for testing purposes
 double LidDrivenCavity::GetDt(){
     return dt;
 } 
@@ -123,7 +120,6 @@ double LidDrivenCavity::GetGlobalLy(){
     return globalLy;
 }
 
-//local
 void LidDrivenCavity::GetData(double* vOut, double* sOut) {
     
     //do deep copy of data, correct size is assumed
@@ -133,24 +129,24 @@ void LidDrivenCavity::GetData(double* vOut, double* sOut) {
 
 void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
 {
-    //global values are entered
+    //global values are entered and stored
     globalLx = xlen;
     globalLy = ylen;
 
-    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);//split domain up appropriately and update local values
-
-    UpdateDxDy();                                                   //update grid spacing dx dy based off new domain
+    //split domain up appropriately and update local values, including grid spacing
+    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);
+    UpdateDxDy();
 }
 
 void LidDrivenCavity::SetGridSize(int nx, int ny)
 {
-    //global values are entered
+    //global values are entered and stored
     globalNx = nx;
     globalNy = ny;
 
-    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);//split domain up appropriately and update local values
-
-    UpdateDxDy();                                                   //update grid spacing dx dy based off new number of grid points
+    //split domain up appropriately and update local values
+    SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);
+    UpdateDxDy();
 }
 
 void LidDrivenCavity::SetTimeStep(double deltat)
@@ -165,30 +161,33 @@ void LidDrivenCavity::SetFinalTime(double finalt)
 
 void LidDrivenCavity::SetReynoldsNumber(double re)
 {
+     //compute kinematic viscosity from Reynolds number
     this->Re = re;
-    this->nu = 1.0/re;                                              //compute kinematic viscosity from Reynolds number
+    this->nu = 1.0/re;
 }
 
 void LidDrivenCavity::Initialise()
 {
-    CleanUp();                                                      //deallocate memory
+    CleanUp();                                                           //deallocate memory
 
-    v   = new double[Npts]();                                       //array denoting vorticity, allocated with zero initial condition
-    vNext = new double[Npts]();         //next time step
-    s   = new double[Npts]();                                       //array denoting streamfunction, allocated with zero initial condition
-    tmp = new double[Npts]();                                       //temporay array, zeros
-    cg  = new SolverCG(Nx, Ny, dx, dy,comm_row_grid,comm_col_grid);                             //create solver
+    //allocate member variable arrays and initialise with zeros
+    v   = new double[Npts]();
+    vNext = new double[Npts]();
+    s   = new double[Npts]();
+    tmp = new double[Npts]();
+    cg  = new SolverCG(Nx, Ny, dx, dy,comm_row_grid,comm_col_grid);
     
-    vTopData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
+    vTopData = new double[Nx]();                                        //top and bottom data row have size local 1 x Nx
     vBottomData = new double[Nx]();
-    vLeftData = new double[Ny]();                  //left and right data have size local Ny x 1
+    vLeftData = new double[Ny]();                                       //left and right data column have size local Ny x 1
     vRightData = new double[Ny]();
     
-    sTopData = new double[Nx]();                   //top and bottom data have size local 1 x Nx
+    sTopData = new double[Nx]();
     sBottomData = new double[Nx]();
-    sLeftData = new double[Ny]();                  //left and right data have size local Ny x 1
+    sLeftData = new double[Ny]();
     sRightData = new double[Ny]();
 
+    //no need to initalise these temporary arrays, will be overwritten
     tempLeft = new double[Ny];
     tempRight = new double[Ny];
 }
@@ -199,12 +198,12 @@ void LidDrivenCavity::Integrate()
     int NSteps = ceil(T/dt);                                        //number of time steps required, rounded up
     for (int t = 0; t < NSteps; ++t)
     {
-        if((rowRank == 0) & (colRank == 0)) {                           //only print on root rank
+        if((rowRank == 0) & (colRank == 0)) {                       //only print on root rank
             std::cout << "Step: " << setw(8) << t
                       << "  Time: " << setw(8) << t*dt
-                      << std::endl;                                     //after each step, output time and step information
+                      << std::endl;                                 //after each step, output time and step information
         }
-        Advance();                                                  //solve the spatial problem and the time domain problem for one time step
+        Advance();                                                  //compute flow properties across domain for next time step
     }
 }
 
