@@ -558,7 +558,7 @@ void LidDrivenCavity::Advance()
     }
     
     if(topRank == MPI_PROC_NULL) {              //assign top BC
-        if((Ny == 1) & !(l(eftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) { 
+        if((Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) { 
               //first capture edge case where only one row, so second row in process below, but do nothing if top left or right corner
             for(int i = 1; i < Nx - 1; ++i) {
                 v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - sBottomData[i]) - 2.0 * dyi * U;
