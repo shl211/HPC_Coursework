@@ -179,12 +179,7 @@ private:
     bool boundaryDomain;                    ///<denotes whether the process is at the boundary of the Cartesian grid #comm_Cart_grid
 
     /// MPI_Request handle to check data send -> [0] = send to top, [1] = send to bottom, [2] = send left, [3] = send right
-    MPI_Request requests[4];                
-
-    MPI_Request dataToLeft;
-    MPI_Request dataToRight;
-    MPI_Request dataToUp;
-    MPI_Request dataToDown;
+    MPI_Request requests[4];
 
     double* vTopData = nullptr;             ///<Buffer to store the vorticity data 1 row above top of local grid
     double* vBottomData = nullptr;          ///<Buffer to store the vorticity data 1 row below bottom of local grid
@@ -195,8 +190,8 @@ private:
     double* sLeftData = nullptr;            ///<Buffer to store the streamfunction data 1 column to left of local grid
     double* sRightData = nullptr;           ///<Buffer to store the streamfunction data 1 column to right of local grid
     
-    double* tempLeft;                           ///<Temporarily stores data for left hand side of current local grid, to be sent left
-    double* tempRight;                          ///<Temporarily stores data for right hand side of current local grid, to be sent right
+    double* tempLeft;                       ///<Temporarily stores data for left hand side of current local grid, to be sent left
+    double* tempRight;                      ///<Temporarily stores data for right hand side of current local grid, to be sent right
 
     SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 

@@ -515,8 +515,8 @@ void LidDrivenCavity::Advance()
     cblas_dcopy(Ny,s,Nx,tempLeft,1);
     cblas_dcopy(Ny,s+Nx-1,Nx,tempRight,1);
 
-    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[0]);                      //tag = 2 -> streamfunction data sent left
-    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[0]);                      //tag = 3 -> streamfunction data sent right
+    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);                      //tag = 2 -> streamfunction data sent left
+    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);                      //tag = 3 -> streamfunction data sent right
 
     //compute interior vorticity points first to allow all processes to send; these do not require data from other processes
     for (int i = 1; i < Nx - 1; ++i) {
@@ -536,7 +536,7 @@ void LidDrivenCavity::Advance()
     //---------------------------------Compute Voriticty BCs--------------------------------------------------------------------------//
     //break up BC assignment to top bottom left right separately, due to gridded nature
     if(bottomRank == MPI_PROC_NULL) {          //assign bottom BC
-        if(Ny == 1 & !(leftRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) {      
+        if((Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {      
              //first capture edge case where only one row, so second row in process above  but do nothing if top left or right corner as should be untouched 0
             for(int i = 1; i < Nx - 1; ++i) {
                 v[IDX(i,0)]     = 2.0 * dy2i * (s[IDX(i,0)]   - sTopData[i]);
@@ -558,7 +558,7 @@ void LidDrivenCavity::Advance()
     }
     
     if(topRank == MPI_PROC_NULL) {              //assign top BC
-        if(Ny == 1 & !(leftRank == MPI_PROC_NULL | rightRank == MPI_PROC_NULL)) { 
+        if((Ny == 1) & !(l(eftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) { 
               //first capture edge case where only one row, so second row in process below, but do nothing if top left or right corner
             for(int i = 1; i < Nx - 1; ++i) {
                 v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - sBottomData[i]) - 2.0 * dyi * U;
@@ -580,7 +580,7 @@ void LidDrivenCavity::Advance()
     }
     
     if(leftRank == MPI_PROC_NULL) {              //assign left BC
-        if(Nx == 1 & !(topRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL)) {
+        if((Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
            //first capture edge case where only one column, so second column in process to the right, unless a corner boundary -> leave untouched
             for(int j = 1; j < Ny - 1; ++j) {
                 v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - sRightData[j]);
@@ -602,7 +602,7 @@ void LidDrivenCavity::Advance()
     }
     
     if(rightRank == MPI_PROC_NULL) {              //assign right BC
-        if(Nx == 1 & !(topRank == MPI_PROC_NULL | bottomRank == MPI_PROC_NULL)) {
+        if((Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
            //first capture edge case where only one column, so second column in process to the left, unless a corner boundary -> leave untouched            
             for(int j = 1; j < Ny - 1; ++j) {
                 v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - sLeftData[j]);
@@ -748,8 +748,8 @@ void LidDrivenCavity::Advance()
     cblas_dcopy(Ny,v,Nx,tempLeft,1);                                                    //extract left and right data to be sent
     cblas_dcopy(Ny,v+Nx-1,Nx,tempRight,1);
 
-    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&dataToLeft);           //tag = 2 -> streamfunction data sent left
-    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&dataToRight);          //tag = 3 -> streamfunction data sent right
+    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);           //tag = 2 -> streamfunction data sent left
+    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);          //tag = 3 -> streamfunction data sent right
     
     //compute interior points of v_n+1 to allow all data to be sent; requires only data stored in current process
     for (int i = 1; i < Nx - 1; ++i) {

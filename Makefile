@@ -28,4 +28,4 @@ $(TESTTARGET): $(TESTS)
 .PHONY: clean
 
 clean:
-	-rm -f *.o $(TARGET) $(TESTTARGET) $(OTHER)
+	-rm -rf *.o $(TARGET) $(TESTTARGET) $(OTHER)
