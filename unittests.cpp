@@ -113,7 +113,7 @@ void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double glo
     Coordinates will always be in the place you expect them to be, while rank may not be due to reordering*/
     int rem,size,gridRank; 
     int dims = 2;
-    int coords[2];
+    int coords[dims];
 
     MPI_Comm_size(MPI_COMM_WORLD, &size);                       //return total number of MPI ranks, size denotes total number of processes P
     MPI_Comm_rank(grid, &gridRank);
