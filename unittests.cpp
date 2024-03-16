@@ -25,7 +25,13 @@
  */
 #define IDX(I,J) ((J)*localNx + (I))
 
+/**
+ * @brief Allow MPI to be initialised and finalised once throughout the unit test
+*/
 struct MPISetUp {
+    /**
+     * @brief Initialise MPI
+    */
     MPISetUp() {
         // Access argc and argv from Boost Test framework
         int& argc = boost::unit_test::framework::master_test_suite().argc;
@@ -33,7 +39,9 @@ struct MPISetUp {
 
         MPI_Init(&argc, &argv);
     }
-
+    /**
+     * @brief Finalise MPI
+    */
     ~MPISetUp() {
         MPI_Finalize();
     }
