@@ -812,7 +812,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
  * @brief Tests whether the time domain solver LidDrivenCavity::Integrator works correctly by comparing problem to a reference dataset
  * @note Reference dataset generated via serial version of this solver
  *******************************************************************************************************************************/
-/*BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator) 
+BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator) 
 {
     //take a case where steady state is reached -> rule of thumb, fluid should pass through at least 10 times to reach SS
     //For reference dx dy = 0.005 and nu*dt/dx/dy = 0.2 < 0.25
@@ -966,4 +966,4 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     delete[] vy;
     delete[] s;
     delete[] v;
-}*/
+}
