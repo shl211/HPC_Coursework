@@ -223,8 +223,8 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     double dy2i = 1.0/dy/dy;
     //int jm1 = 0, jp1 = 2;                                       //jm1 is j-1, jp1 is j+1; this allows for vectorisation of operation
 
-    //each i loop should take roughly same amount of time, so use dynamic scheduling to divided procedure evenly
-    #pragma omp parallel for schedule(dynamic)
+    //each i loop should take roughly same amount of time, so use static scheduling to divided procedure evenly
+    #pragma omp parallel for schedule(static)
         for (int j = 1; j < Ny - 1; ++j) {
             for (int i = 1; i < Nx - 1; ++i) {                      //i denotes x grids, j denotes y grids
                 out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
@@ -392,8 +392,8 @@ void SolverCG::Precondition(double* in, double* out) {
     //-------------------------------------------------Precondition Interior Points First--------------------------------------------//
     
     #pragma omp parallel private(i,j)
-    {
-        #pragma omp for schedule(dynamic) nowait 
+    {   //simple computation, so use static
+        #pragma omp for schedule(static) nowait
             for (j = 1; j < Ny - 1; ++j) {                  
                 for (i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,j)] = in[IDX(i,j)]/factor;
@@ -401,6 +401,8 @@ void SolverCG::Precondition(double* in, double* out) {
             }
 
         //---------------------------------------------Finally, Precondition Edges of each Local Domain ---------------------------------------//
+        
+        
         if( leftRank != MPI_PROC_NULL) {        
         //if process not on left boundary, precodnition LHS, otherwise maintain same BC
             #pragma omp for schedule(dynamic) nowait      
