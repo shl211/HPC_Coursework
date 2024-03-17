@@ -224,7 +224,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     //int jm1 = 0, jp1 = 2;                                       //jm1 is j-1, jp1 is j+1; this allows for vectorisation of operation
 
     //each i loop should take roughly same amount of time, so use static scheduling to divided procedure evenly
-    #pragma omp parallel for schedule(static)
+    #pragma omp parallel for schedule(dynamic)
         for (int j = 1; j < Ny - 1; ++j) {
             for (int i = 1; i < Nx - 1; ++i) {                      //i denotes x grids, j denotes y grids
                 out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
@@ -393,7 +393,7 @@ void SolverCG::Precondition(double* in, double* out) {
     
     #pragma omp parallel private(i,j)
     {   //simple computation, so use static
-        #pragma omp for schedule(static) nowait
+        #pragma omp for schedule(dynamic) nowait
             for (j = 1; j < Ny - 1; ++j) {                  
                 for (i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,j)] = in[IDX(i,j)]/factor;
@@ -504,35 +504,37 @@ void SolverCG::Precondition(double* in, double* out) {
 void SolverCG::ImposeBC(double* inout) {
         
     //only impose BC on relevant boundaries of the boundary processes
-    
     #pragma omp parallel
     {
-        if(bottomRank == MPI_PROC_NULL) {                           //if bottom process, impose BC on bottom row
-            #pragma omp for schedule(dynamic) nowait
-                for(int i = 0; i < Nx; ++i) {
-                    inout[IDX(i,0)] = 0.0;
-                }
-        }
-        
-        if(topRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(dynamic) nowait
-                for(int i = 0; i < Nx; ++i) {
-                    inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
-                }
-        }
-        
-        if(leftRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(dynamic) nowait
-                for(int j = 0; j < Ny; ++j) {
-                    inout[IDX(0,j)] = 0.0;                              //BC on left column
-                }
-        }
-        
-        if(rightRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(dynamic) nowait
-                for(int j = 0; j < Ny; ++j) {
-                    inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
-                }
+        #pragma omp sections nowait
+        {
+            #pragma omp section
+            if(bottomRank == MPI_PROC_NULL) {                           //if bottom process, impose BC on bottom row
+                    for(int i = 0; i < Nx; ++i) {
+                        inout[IDX(i,0)] = 0.0;
+                    }
+            }
+            
+            #pragma omp section
+            if(topRank == MPI_PROC_NULL) {
+                    for(int i = 0; i < Nx; ++i) {
+                        inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
+                    }
+            }
+            
+            #pragma omp section
+            if(leftRank == MPI_PROC_NULL) {
+                    for(int j = 0; j < Ny; ++j) {
+                        inout[IDX(0,j)] = 0.0;                              //BC on left column
+                    }
+            }
+            
+            #pragma omp section
+            if(rightRank == MPI_PROC_NULL) {
+                    for(int j = 0; j < Ny; ++j) {
+                        inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
+                    }
+            }
         }
     }
 
