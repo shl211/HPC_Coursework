@@ -229,7 +229,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
     MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);          //tag = 2 -> streamfunction data sent left
 
     //compute interior points while waiting to send
-    #pragma omp parallel for schedule(dynamic) 
+    #pragma omp parallel for schedule(static) 
     for (int i = 1; i < Nx - 1; ++i) {
         for (int j = 1; j < Ny - 1; ++j) {
             u0[IDX(i,j)] =  (s[IDX(i,j+1)] - s[IDX(i,j)]) / dy;     //compute velocity in x direction at every grid point from streamfunction
