@@ -136,7 +136,7 @@ void SolverCG::Solve(double* b, double* x) {
         ApplyOperator(p, t);                        //compute -nabla^2 p and store in t (effectively A*p_k)
 
         //division cannot be performed locally and reduced, numerator and denominator must be summed separately then divided for global alpha (and beta) 
-        //all three blas operations independent of each other, use sections to also exploit blas speed
+        //all three blas operations independent of each other, use sections to also exploit blas speed, more than two operations so speed up > overhead
         #pragma omp parallel
         {
             #pragma omp sections nowait
@@ -155,6 +155,7 @@ void SolverCG::Solve(double* b, double* x) {
 
         globalAlpha = globalAlpha/globalAlphaTemp;                                          //compute global/actual alpha_k = (r_k^T*r_k) / (p_k^T*A*p_k)
 
+        //no parallel region here as tasks is slower than just letting it do its thing
         cblas_daxpy(n,  globalAlpha, p, 1, x, 1);                                           // x_{k+1} = x_k + alpha_k*p_k
         cblas_daxpy(n, -globalAlpha, t, 1, r, 1);                                           // r_{k+1} = r_k - alpha_k*A*p_k
     
@@ -171,7 +172,7 @@ void SolverCG::Solve(double* b, double* x) {
         Precondition(r, z);                                                                 //precondition r_{k+1} and store in z_{k+1}
 
         betaNum = cblas_ddot(n, r, 1, z, 1);                                                //numerator of beta = (r_{k+1}^T*r_{k+1})
-
+                
         cblas_dcopy(n, z, 1, t, 1);                                                         //copy z_{k+1} into t, so t now holds preconditioned r_{k+1}
         
         MPI_Allreduce(&betaDen,&globalBetaTemp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
@@ -210,6 +211,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     MPI_Isend(in,Nx,MPI_DOUBLE,bottomRank,1,comm_col_grid,&requests[1]);                    //send data on bottom of current process down -> tag 1
 
     //now, extract relevant daata for left and right columns and send
+    //no parallel region here, overheads slow down program, if three consecutive BLAS calls then maybe
     cblas_dcopy(Ny,in,Nx,tempLeft,1);                                                       //use temp buffer to prevent accidental data overwrite with Isend
     cblas_dcopy(Ny,in+Nx-1,Nx,tempRight,1);
 
@@ -504,38 +506,37 @@ void SolverCG::Precondition(double* in, double* out) {
 void SolverCG::ImposeBC(double* inout) {
         
     //only impose BC on relevant boundaries of the boundary processes
+    //negligible performance difference between section and for, use for loop as easier
     #pragma omp parallel
     {
-        #pragma omp sections nowait
         {
-            #pragma omp section
             if(bottomRank == MPI_PROC_NULL) {                           //if bottom process, impose BC on bottom row
+                #pragma omp for schedule(dynamic) nowait
                     for(int i = 0; i < Nx; ++i) {
                         inout[IDX(i,0)] = 0.0;
                     }
             }
             
-            #pragma omp section
             if(topRank == MPI_PROC_NULL) {
+                #pragma omp for schedule(dynamic) nowait
                     for(int i = 0; i < Nx; ++i) {
                         inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
                     }
             }
             
-            #pragma omp section
             if(leftRank == MPI_PROC_NULL) {
+                #pragma omp for schedule(dynamic) nowait
                     for(int j = 0; j < Ny; ++j) {
                         inout[IDX(0,j)] = 0.0;                              //BC on left column
                     }
             }
             
-            #pragma omp section
             if(rightRank == MPI_PROC_NULL) {
+                #pragma omp for schedule(dynamic) nowait
                     for(int j = 0; j < Ny; ++j) {
                         inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
                     }
             }
         }
     }
-
 }
