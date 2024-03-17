@@ -554,7 +554,7 @@ void LidDrivenCavity::Advance()
         {
             //assign bottom BC
             #pragma omp section
-                if(bottomRank == MPI_PROC_NULL & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {             
+                if((bottomRank == MPI_PROC_NULL) & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {             
                     //if at global bottom grid, but domain is row vector, then second row is in process above
                     //however, do nothing if we are at bottom left or right corner as should be untouched 0
                     for(int i = 1; i < Nx - 1; ++i) {
@@ -563,7 +563,7 @@ void LidDrivenCavity::Advance()
                 }
             
             #pragma omp section
-                if(bottomRank == MPI_PROC_NULL & !( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {  
+                if((bottomRank == MPI_PROC_NULL) & !( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {  
                     //otherwise, for general case at bottom of grid, impose these bottom BCs 
                     for(int i = 1; i < Nx-1; ++i)
                         v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
@@ -579,7 +579,7 @@ void LidDrivenCavity::Advance()
             
             //assign top BC
             #pragma omp section
-            if(topRank == MPI_PROC_NULL & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {              
+            if((topRank == MPI_PROC_NULL) & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {              
                 //if at global top grid, but domain is row vector, then second row is in process below
                 //however, do nothing if we are at top left or right corner as should be untouched 0                    
                 for(int i = 1; i < Nx - 1; ++i) {
@@ -588,7 +588,7 @@ void LidDrivenCavity::Advance()
             }
                 
             #pragma omp section
-            if(topRank == MPI_PROC_NULL & !( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {              
+            if((topRank == MPI_PROC_NULL) & !( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {              
                 //otherwise, for general case at top of grid, impose these top BCs 
                 for(int i = 1; i < Nx - 1; ++i)
                     v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - s[IDX(i,Ny-2)]) - 2.0 * dyi * U;
@@ -604,7 +604,7 @@ void LidDrivenCavity::Advance()
             
             //assign left BC
             #pragma omp section
-            if(leftRank == MPI_PROC_NULL & ( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
+            if((leftRank == MPI_PROC_NULL) & ( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
                 //if at global left grid, but domain is column vector, then second column is in process to right
                 //however, do nothing if we are at top or bottom left corner as should be untouched 0    
                 for(int j = 1; j < Ny - 1; ++j) {
@@ -613,7 +613,7 @@ void LidDrivenCavity::Advance()
             }
 
             #pragma omp section
-            if(leftRank == MPI_PROC_NULL & !( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
+            if((leftRank == MPI_PROC_NULL) & !( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
                 //otherwise, for general case at left of grid, impose these left BCs 
                 for(int j = 1; j < Ny - 1; ++j)
                     v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - s[IDX(1,j)]);
@@ -629,7 +629,7 @@ void LidDrivenCavity::Advance()
             
             //assign right BC
             #pragma omp section
-            if(rightRank == MPI_PROC_NULL & ( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
+            if((rightRank == MPI_PROC_NULL) & ( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
                 //if at global right grid, but domain is column vector, then second column is in process to left
                 //however, do nothing if we are at top or bottom right corner as should be untouched 0
                 for(int j = 1; j < Ny - 1; ++j) {
@@ -638,7 +638,7 @@ void LidDrivenCavity::Advance()
             }
 
             #pragma omp section
-            if(rightRank == MPI_PROC_NULL & !( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {   
+            if((rightRank == MPI_PROC_NULL) & !( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {   
                 //otherwise, for general case at right of grid, impose these left BCs 
                 for(int j = 1; j < Ny - 1; ++j)
                     v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - s[IDX(Nx-2,j)]);
@@ -674,7 +674,7 @@ void LidDrivenCavity::Advance()
 
             //for general case where only one daset from other process is needed
             #pragma omp section
-            if(bottomRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
+            if((bottomRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
                 //if process at bottom of grid, don't need to do anything as BC imposed
                 for(int i = 1; i < Nx - 1; ++i) {
                     v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])               //bottom row, requires access to bottom
@@ -683,7 +683,7 @@ void LidDrivenCavity::Advance()
             }
 
             #pragma omp section
-            if(topRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
+            if((topRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
                 //if process at top of grid, don't need to do anything as BC imposed
                 for(int i = 1; i < Nx - 1; ++i) {
                     v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)])    //top row, requires access to top
@@ -692,7 +692,7 @@ void LidDrivenCavity::Advance()
             }
 
             #pragma omp section
-            if(leftRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
+            if((leftRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
                 //if process at left of grid, don't need to do anything as BC imposed
                 for(int j = 1; j < Ny - 1; ++j) {
                     v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])                   //left column, requires access to teh left
@@ -701,7 +701,7 @@ void LidDrivenCavity::Advance()
             }
 
             #pragma omp section
-            if(rightRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {        
+            if((rightRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {        
                 //if process at right of grid, don't need to do anything as BC imposed
                 for(int j = 1; j < Ny - 1; ++j) {
                     v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-2,j)])         //right column, requires access to teh righ
@@ -712,6 +712,7 @@ void LidDrivenCavity::Advance()
     }
     
     //------------------------------------------Compute Vorticity on Corners of each Local Domain----------------------------------------//
+    //don't parallelise as overheads will exceed serial computation of four points
 
     if((Nx == 1) & (Ny == 1) & !boundaryDomain) {   
         //if process domain not on boundary, and only one cell, need acess to all four datasets
