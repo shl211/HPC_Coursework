@@ -7,6 +7,7 @@ using namespace std;
 
 #include <cblas.h>
 #include <mpi.h>
+#include <omp.h>
 
 /**
  * @brief Macro to map coordinates (i,j) onto it's corresponding location in memory, assuming row-wise matrix storage
@@ -752,17 +753,18 @@ void LidDrivenCavity::Advance()
     MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);          //tag = 3 -> streamfunction data sent right
     
     //compute interior points of v_n+1 to allow all data to be sent; requires only data stored in current process
-    for (int i = 1; i < Nx - 1; ++i) {
-        for (int j = 1; j < Ny - 1; ++j) {
-            vNext[IDX(i,j)] = v[IDX(i,j)] + dt*(
-                    ( (s[IDX(i+1,j)] - s[IDX(i-1,j)]) * 0.5 * dxi
-                    *(v[IDX(i,j+1)] - v[IDX(i,j-1)]) * 0.5 * dyi)
-                - ( (s[IDX(i,j+1)] - s[IDX(i,j-1)]) * 0.5 * dyi
-                    *(v[IDX(i+1,j)] - v[IDX(i-1,j)]) * 0.5 * dxi)
-                + nu * (v[IDX(i+1,j)] - 2.0 * v[IDX(i,j)] + v[IDX(i-1,j)])*dx2i
-                + nu * (v[IDX(i,j+1)] - 2.0 * v[IDX(i,j)] + v[IDX(i,j-1)])*dy2i);
+    
+        for (int i = 1; i < Nx - 1; ++i) {
+            for (int j = 1; j < Ny - 1; ++j) {
+                vNext[IDX(i,j)] = v[IDX(i,j)] + dt*(
+                        ( (s[IDX(i+1,j)] - s[IDX(i-1,j)]) * 0.5 * dxi
+                        *(v[IDX(i,j+1)] - v[IDX(i,j-1)]) * 0.5 * dyi)
+                    - ( (s[IDX(i,j+1)] - s[IDX(i,j-1)]) * 0.5 * dyi
+                        *(v[IDX(i+1,j)] - v[IDX(i-1,j)]) * 0.5 * dxi)
+                    + nu * (v[IDX(i+1,j)] - 2.0 * v[IDX(i,j)] + v[IDX(i-1,j)])*dx2i
+                    + nu * (v[IDX(i,j+1)] - 2.0 * v[IDX(i,j)] + v[IDX(i,j-1)])*dy2i);
+            }
         }
-    }
     
     //receive the data as need it for next process
     MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);                     //bottom row of process is data sent up from process below              

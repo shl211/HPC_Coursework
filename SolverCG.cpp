@@ -6,6 +6,7 @@ using namespace std;
 
 #include <cblas.h>
 #include <mpi.h>
+#include <omp.h>
 
 #include "SolverCG.h"
 
@@ -211,19 +212,21 @@ void SolverCG::ApplyOperator(double* in, double* out) {
 
     double dx2i = 1.0/dx/dx;                                    //pre-compute 1/(dx)^2 and 1/(dy)^2
     double dy2i = 1.0/dy/dy;
-    int jm1 = 0, jp1 = 2;                                       //jm1 is j-1, jp1 is j+1; this allows for vectorisation of operation
+    //int jm1 = 0, jp1 = 2;                                       //jm1 is j-1, jp1 is j+1; this allows for vectorisation of operation
 
+    //each i loop should take roughly same amount of time, so use static scheduling to divided procedure evenly
+    #pragma omp parallel for schedule(static)
     for (int j = 1; j < Ny - 1; ++j) {
         for (int i = 1; i < Nx - 1; ++i) {                      //i denotes x grids, j denotes y grids
             out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
                               + 2.0*in[IDX(i,   j)]
                               -     in[IDX(i+1, j)])*dx2i       //calculates part of equation for second-order central-difference related to x
-                          + ( -     in[IDX(i, jm1)]
+                          + ( -     in[IDX(i, j-1)]
                               + 2.0*in[IDX(i,   j)]
-                              -     in[IDX(i, jp1)])*dy2i;      //calculates part of equation for second-order central-difference related to y
+                              -     in[IDX(i, j+1)])*dy2i;      //calculates part of equation for second-order central-difference related to y
         }
-        jm1++;                                                  //jm1 and jp1 incremented separately outside i loop
-        jp1++;                                                  //this is done instead of j-1,j+1 in inner loop to encourage vectorisation
+        //jm1++;                                                  //jm1 and jp1 incremented separately outside i loop
+        //jp1++;                                                  //this is done instead of j-1,j+1 in inner loop to encourage vectorisation
     }
     
     //------------------------------------------Receive Boundary Data, needed for next step--------------------------------------------------------------//
@@ -268,7 +271,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             out[Nx-1] = (- in[Nx-2] + 2.0 * in[0] - rightData[1] ) * dx2i
                     +(- bottomData[Nx-1] + 2 * in[0] - topData[Nx-1] ) * dy2i;
         }
-    }
+    } 
     else {//otherwise, for general case, compute the four corners
         
         //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
@@ -456,27 +459,36 @@ void SolverCG::Precondition(double* in, double* out) {
 void SolverCG::ImposeBC(double* inout) {
         
     //only impose BC on relevant boundaries of the boundary processes
-    if(bottomRank == MPI_PROC_NULL) {                           //if bottom process, impose BC on bottom row
-        for(int i = 0; i < Nx; ++i) {
-            inout[IDX(i,0)] = 0.0;
-        }
-    }
     
-    if(topRank == MPI_PROC_NULL) {
-        for(int i = 0; i < Nx; ++i) {
-            inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
+    #pragma omp parallel
+    {
+        if(bottomRank == MPI_PROC_NULL) {                           //if bottom process, impose BC on bottom row
+            #pragma omp for schedule(static)
+            for(int i = 0; i < Nx; ++i) {
+                inout[IDX(i,0)] = 0.0;
+            }
+        }
+        
+        if(topRank == MPI_PROC_NULL) {
+            #pragma omp for schedule(static)
+            for(int i = 0; i < Nx; ++i) {
+                inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
+            }
+        }
+        
+        if(leftRank == MPI_PROC_NULL) {
+            #pragma omp for schedule(static)
+            for(int j = 0; j < Ny; ++j) {
+                inout[IDX(0,j)] = 0.0;                              //BC on left column
+            }
+        }
+        
+        if(rightRank == MPI_PROC_NULL) {
+            #pragma omp for schedule(static)
+            for(int j = 0; j < Ny; ++j) {
+                inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
+            }
         }
     }
-    
-    if(leftRank == MPI_PROC_NULL) {
-        for(int j = 0; j < Ny; ++j) {
-            inout[IDX(0,j)] = 0.0;                              //BC on left column
-        }
-    }
-    
-    if(rightRank == MPI_PROC_NULL) {
-        for(int j = 0; j < Ny; ++j) {
-            inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
-        }
-    }
+
 }
