@@ -401,65 +401,73 @@ void SolverCG::Precondition(double* in, double* out) {
             }
 
         //---------------------------------------------Finally, Precondition Edges of each Local Domain ---------------------------------------//
-        
-        
-        if( leftRank != MPI_PROC_NULL) {        
-        //if process not on left boundary, precodnition LHS, otherwise maintain same BC
-            #pragma omp for schedule(dynamic) nowait      
+        //lots of if statements, with each process computing four, so split the eight checks up between the processes as sections
+        //sections rather than fors as fors were found to reduce performance
+        #pragma omp sections nowait
+        {
+            #pragma omp section
+            if( leftRank != MPI_PROC_NULL) {        
+            //if process not on left boundary, precodnition LHS, otherwise maintain same BC
                 for(j = 1; j < Ny-1; ++j) {
                     out[IDX(0,j)] = in[IDX(0,j)]/factor;
                 }
-        }
-        else {
-            #pragma omp for schedule(dynamic) nowait       
+            }
+            
+            #pragma omp section
+            if( leftRank == MPI_PROC_NULL) {
                 for(j = 1; j < Ny-1; ++j) {
                     out[IDX(0,j)] = in[IDX(0,j)];
                 }
-        }
-        
-        if(rightRank != MPI_PROC_NULL) {
-            //if process not on right boundary, precodnition RHS, otherwise maintain same BC
-            #pragma omp for schedule(dynamic) nowait   
+            }
+            
+            #pragma omp section
+            if(rightRank != MPI_PROC_NULL) {
+                //if process not on right boundary, precodnition RHS, otherwise maintain same BC
                 for(j = 1; j < Ny - 1; ++j) {
                     out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)]/factor;
                 }
-        }
-        else {
-            #pragma omp for schedule(dynamic) nowait   
+            }
+            
+            #pragma omp section
+            if(rightRank == MPI_PROC_NULL) {
                 for(j = 1; j < Ny - 1; ++j) {
                     out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)];
                 }
-        }
-        
-        if(bottomRank != MPI_PROC_NULL) {   
-            //if process not on bottom boundary, precodntion bottom row, otherwise maintain same BC
-            #pragma omp for schedule(dynamic) nowait   
+            }
+            
+            #pragma omp section
+            if(bottomRank != MPI_PROC_NULL) {   
+                //if process not on bottom boundary, precodntion bottom row, otherwise maintain same BC
                 for(i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,0)] = in[IDX(i,0)]/factor;
                 }
-        }
-        else {
-            #pragma omp for schedule(dynamic) nowait   
+            }
+
+            #pragma omp section
+            if(bottomRank == MPI_PROC_NULL) {
                 for(i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,0)] = in[IDX(i,0)];
                 }
-        }
-        
-        if(topRank != MPI_PROC_NULL) {   
-            //if process not on top boundary, precodntion top row, otherwise maintain same BC
-            #pragma omp for schedule(dynamic) nowait   
+            }
+            
+            #pragma omp section
+            if(topRank != MPI_PROC_NULL) {   
+                //if process not on top boundary, precodntion top row, otherwise maintain same BC
                 for(i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)]/factor;
                 }
-        }
-        else {
-            #pragma omp for schedule(dynamic) nowait   
+            }
+
+            #pragma omp section
+            if(topRank == MPI_PROC_NULL) {
                 for(i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)];
                 }
+            }
         }
     }
     //---------------------------------------------Precondition Corners of each Local Domain -----------------------------------------//
+    //No parallel here as overheads would be too much for calculating four datapoints
     if( (leftRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) {
         //if process is on the left or bottom, impose BC on bottom left corner 
         out[0] = in[0];
