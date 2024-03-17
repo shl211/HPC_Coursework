@@ -911,39 +911,43 @@ void LidDrivenCavity::Advance()
     }
     
     //--------------------------------Compute Time Advance Vorticity for Edges of each Local Domain------------------------------------------//
+    //lots of tasks (if statements) can be executed concurrently; sections instead of fors as seems to improve performance
     #pragma omp parallel
     {
-        if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL )|( rightRank == MPI_PROC_NULL))) {
-            //if column vector, don't need to do for left or right as BC already imposed
-            #pragma omp for schedule(dynamic) nowait
-            for(int j = 1; j < Ny - 1; ++j) {
-                vNext[j] = v[j] + dt*(                                                  //for column, only need left and right proecss data
-                    ( (sRightData[j] - sLeftData[j]) * 0.5 * dxi
-                        *(v[j+1] - v[j-1]) * 0.5 * dyi)
-                    - ( (s[j+1] - s[j-1]) * 0.5 * dyi
-                        *(vRightData[j] - vLeftData[j]) * 0.5 * dxi)
-                    + nu * (vRightData[j] - 2.0 * v[j] + vLeftData[j])*dx2i
-                    + nu * (v[j+1] - 2.0 * v[j] + v[j-1])*dy2i);
+        #pragma omp sections nowait
+        {
+            #pragma omp section
+            if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL )|( rightRank == MPI_PROC_NULL))) {
+                //if column vector, don't need to do for left or right as BC already imposed
+                for(int j = 1; j < Ny - 1; ++j) {
+                    vNext[j] = v[j] + dt*(                                                  //for column, only need left and right proecss data
+                        ( (sRightData[j] - sLeftData[j]) * 0.5 * dxi
+                            *(v[j+1] - v[j-1]) * 0.5 * dyi)
+                        - ( (s[j+1] - s[j-1]) * 0.5 * dyi
+                            *(vRightData[j] - vLeftData[j]) * 0.5 * dxi)
+                        + nu * (vRightData[j] - 2.0 * v[j] + vLeftData[j])*dx2i
+                        + nu * (v[j+1] - 2.0 * v[j] + v[j-1])*dy2i);
+                }
             }
-        }
-        else if ((Nx > 1 )& (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-            //if row vector, don't need to do for top or bottom as BC already imposed
-            #pragma omp for schedule(dynamic) nowait
-            for(int i = 0; i < Nx - 1; ++i) {
-                vNext[i] = v[i] + dt*(                                                  //row needs access to top an bototm
-                    ( (s[i+1] - s[i-1]) * 0.5 * dxi
-                        *(vTopData[i] - vBottomData[i]) * 0.5 * dyi)
-                    - ( (sTopData[i] - sBottomData[i]) * 0.5 * dyi
-                        *(v[i+1] - v[i-1]) * 0.5 * dxi)
-                    + nu * (v[i+1] - 2.0 * v[i] + v[i-1])*dx2i
-                    + nu * (vTopData[i] - 2.0 * v[i] + vBottomData[i])*dy2i);
+
+            #pragma omp section
+            if ((Nx > 1 )& (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+                //if row vector, don't need to do for top or bottom as BC already imposed
+                for(int i = 0; i < Nx - 1; ++i) {
+                    vNext[i] = v[i] + dt*(                                                  //row needs access to top an bototm
+                        ( (s[i+1] - s[i-1]) * 0.5 * dxi
+                            *(vTopData[i] - vBottomData[i]) * 0.5 * dyi)
+                        - ( (sTopData[i] - sBottomData[i]) * 0.5 * dyi
+                            *(v[i+1] - v[i-1]) * 0.5 * dxi)
+                        + nu * (v[i+1] - 2.0 * v[i] + v[i-1])*dx2i
+                        + nu * (vTopData[i] - 2.0 * v[i] + vBottomData[i])*dy2i);
+                }
             }
-        }
-        else{
+            
             //for all other cases, process only needs to acces one dataset
-            if(bottomRank != MPI_PROC_NULL) {   
+            #pragma omp section
+            if((bottomRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {   
                 //only compute bottom row if not at bottom of grid
-                #pragma omp for schedule(dynamic) nowait
                 for (int i = 1; i < Nx - 1; ++i) {                                      //bottom row, needs access to bottom
                     vNext[IDX(i,0)] = v[IDX(i,0)] + dt*(
                             ( (s[IDX(i+1,0)] - s[IDX(i-1,0)]) * 0.5 * dxi
@@ -954,10 +958,10 @@ void LidDrivenCavity::Advance()
                             + nu * (v[IDX(i,1)] - 2.0 * v[IDX(i,0)] + vBottomData[i])*dy2i);
                 }
             }
-            
-            if(topRank != MPI_PROC_NULL) {  
+                
+            #pragma omp section
+            if((topRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {  
                 //only compute top row if not at top of grid
-                #pragma omp for schedule(dynamic) nowait
                 for (int i = 1; i < Nx - 1; ++i) {                                      
                     vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)] + dt*(                          //top row, needs access to top
                             ( (s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)]) * 0.5 * dxi
@@ -968,10 +972,10 @@ void LidDrivenCavity::Advance()
                             + nu * (vTopData[i] - 2.0 * v[IDX(i,Ny-1)] + v[IDX(i,Ny-2)])*dy2i);
                 }
             }
-            
-            if(leftRank != MPI_PROC_NULL) {
+                
+            #pragma omp section
+            if((leftRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
                 //only compute left column if not at LHS of grid
-                #pragma omp for schedule(dynamic) nowait
                 for (int j = 1; j < Ny - 1; ++j) {                                       //left column, needs access to left
                     vNext[IDX(0,j)] = v[IDX(0,j)] + dt*(
                             ( (s[IDX(1,j)] - sLeftData[j]) * 0.5 * dxi
@@ -982,10 +986,10 @@ void LidDrivenCavity::Advance()
                             + nu * (v[IDX(0,j+1)] - 2.0 * v[IDX(0,j)] + v[IDX(0,j-1)])*dy2i);
                 }
             }
-            
-            if(rightRank != MPI_PROC_NULL) {
+                
+            #pragma omp section
+            if((rightRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
                 //only compute right column if not at RHS of grid
-                #pragma omp for schedule(dynamic) nowait
                 for (int j = 1; j < Ny - 1; ++j) {                                          
                     vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)] + dt*(                          //right column, needs access to right
                             ( (sRightData[j] - s[IDX(Nx-2,j)]) * 0.5 * dxi
@@ -996,36 +1000,35 @@ void LidDrivenCavity::Advance()
                             + nu * (v[IDX(Nx-1,j+1)] - 2.0 * v[IDX(Nx-1,j)] + v[IDX(Nx-1,j-1)])*dy2i);
                 }
             }
-        }
-        
-        //-----------------Enforce Time Advance Vorticity BC------------------------------------//
+            
+            //-----------------Enforce Time Advance Vorticity BC------------------------------------//
 
-        if(bottomRank == MPI_PROC_NULL) {               //assign bottom BC
-            #pragma omp for schedule(dynamic) nowait
-            for(int i = 0; i < Nx; ++i) {
-                vNext[IDX(i,0)] = v[IDX(i,0)];
+            #pragma omp section
+            if(bottomRank == MPI_PROC_NULL) {               //assign bottom BC
+                for(int i = 0; i < Nx; ++i) {
+                    vNext[IDX(i,0)] = v[IDX(i,0)];
+                }
             }
-        }
-        
-        if(topRank == MPI_PROC_NULL) {                  //assign top BC
-            #pragma omp for schedule(dynamic) nowait
-            for(int i = 0; i < Nx; ++i) {
-                vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)];
+            
+            #pragma omp section
+            if(topRank == MPI_PROC_NULL) {                  //assign top BC
+                for(int i = 0; i < Nx; ++i) {
+                    vNext[IDX(i,Ny-1)] = v[IDX(i,Ny-1)];
+                }
             }
-        }
-        
-        //impose left right BCs
-        if(leftRank == MPI_PROC_NULL) {                 //assign left BC
-            #pragma omp for schedule(dynamic) nowait
-            for(int j = 0; j < Ny; ++j) {
-                vNext[IDX(0,j)] = v[IDX(0,j)];
+            
+            #pragma omp section
+            if(leftRank == MPI_PROC_NULL) {                 //assign left BC
+                for(int j = 0; j < Ny; ++j) {
+                    vNext[IDX(0,j)] = v[IDX(0,j)];
+                }
             }
-        }
-        
-        if(rightRank == MPI_PROC_NULL) {                //assign right BC
-            #pragma omp for schedule(dynamic) nowait
-            for(int j = 0; j < Ny; ++j) {
-                vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)];
+
+            #pragma omp section
+            if(rightRank == MPI_PROC_NULL) {                //assign right BC
+                for(int j = 0; j < Ny; ++j) {
+                    vNext[IDX(Nx-1,j)] = v[IDX(Nx-1,j)];
+                }
             }
         }
     }
