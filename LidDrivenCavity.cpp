@@ -311,65 +311,68 @@ void LidDrivenCavity::WriteSolution(std::string file)
     //-----------------------------Compute edges of each local domain-----------------------------------------------//
     #pragma omp parallel
     { 
-        if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-            //if column vector, don't need to do for left or right as BC already imposed along entire column
-            #pragma omp for schedule(dynamic) nowait
-            for(int j = 1; j < Ny - 1; ++j) {
-                u0[j] = (s[j+1] - s[j]) / dy;
-                u1[j] = - (sRightData[j] - s[j]) / dx;
+        #pragma omp sections nowait
+        {
+            #pragma omp section
+            if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+                //if column vector, don't need to do for left or right as BC already imposed along entire column
+                for(int j = 1; j < Ny - 1; ++j) {
+                    u0[j] = (s[j+1] - s[j]) / dy;
+                    u1[j] = - (sRightData[j] - s[j]) / dx;
+                }
             }
-        }
-        else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-            //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row (top BC will be imposed later)
-            #pragma omp for schedule(dynamic) nowait
-            for(int i = 1; i < Nx - 1; ++i) {
-                u0[i] = (sTopData[i] - s[i]) / dy;
-                u1[i] = - (s[i+1] - s[i]) / dx;
+
+            #pragma omp section
+            if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+                //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row (top BC will be imposed later)
+                for(int i = 1; i < Nx - 1; ++i) {
+                    u0[i] = (sTopData[i] - s[i]) / dy;
+                    u1[i] = - (s[i+1] - s[i]) / dx;
+                }
             }
-        }
-        else {//otherwise, for the general case, compute edge data
+            //otherwise, for the general case, compute edge data
             //only compute bottom row if not at bottom of grid
-            if(bottomRank != MPI_PROC_NULL) {
-                #pragma omp for schedule(dynamic) nowait
+            #pragma omp section
+            if(bottomRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
                 for(int i = 1; i < Nx - 1; ++i) {
                     u0[IDX(i,0)] = (s[IDX(i,1)] - s[IDX(i,0)]) / dy;
                     u1[IDX(i,0)] = - (s[IDX(i+1,0)] - s[IDX(i,0)]) / dx;
                 }
             }
-            
+                
             //only compute top row if not at top of grid
+            #pragma omp section
             if(topRank != MPI_PROC_NULL) {
-                #pragma omp for schedule(dynamic) nowait
                 for(int i = 1; i < Nx - 1; ++i) {
                     u0[IDX(i,Ny-1)] = (sTopData[i] - s[IDX(i,Ny-1)]) / dy;
                     u1[IDX(i,Ny-1)] = - (s[IDX(i+1,Ny-1)] - s[IDX(i,Ny-1)]) / dx;
                 }
             }
-            
-            //only compute left column if not at left of grid
+                
+            //only compute left column if not at left of grid#
+            #pragma omp section
             if(leftRank != MPI_PROC_NULL) {
-                #pragma omp for schedule(dynamic) nowait
-                for(int j = 1; j < Ny - 1; ++j) {
+            for(int j = 1; j < Ny - 1; ++j) {
                     u0[IDX(0,j)] = (s[IDX(0,j+1)] - s[IDX(0,j)]) / dy;
                     u1[IDX(0,j)] = - (s[IDX(1,j)] - s[IDX(0,j)]) / dx;
                 }
             }
-            
+                
             //only compute right coluymn if not at right of grid
+            #pragma omp section
             if(rightRank != MPI_PROC_NULL) {
-                #pragma omp for schedule(dynamic) nowait
                 for(int j = 1; j < Ny - 1; ++j) {
                     u0[IDX(Nx-1,j)] =  (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j)]) / dy;
                     u1[IDX(Nx-1,j)] = - (sRightData[j] - s[IDX(Nx-1,j)]) / dx;
                 }
             }
-        }
 
-        //now impose top BC
-        if(topRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(dynamic) nowait
-            for (int i = 0; i < Nx; ++i) {
-                u0[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
+            //now impose top BC
+            #pragma omp section
+            if(topRank == MPI_PROC_NULL) {
+                for (int i = 0; i < Nx; ++i) {
+                    u0[IDX(i,Ny-1)] = U;                                        //impose x velocity as U at top surface to enforce no-slip boundary condition
+                }
             }
         }
     }
