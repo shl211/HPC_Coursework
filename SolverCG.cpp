@@ -137,7 +137,7 @@ void SolverCG::Solve(double* b, double* x) {
 
         //division cannot be performed locally and reduced, numerator and denominator must be summed separately then divided for global alpha (and beta) 
         //all three blas operations independent of each other, use sections to also exploit blas speed, more than two operations so speed up > overhead
-        #pragma omp parallel
+        //#pragma omp parallel
         {
             #pragma omp sections nowait
             {
@@ -312,12 +312,12 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     //----------------------------------------------Compute Edges of each local domain------------------------------------------//
     //ton of if statements -> use sections rather than loops so each if statement executed by different thread
     //when using for constructs, the performance worsened, hence sections, which has incremental gains
-    #pragma omp parallel
+    //#pragma omp parallel
     {       
-        #pragma omp sections nowait
+        //#pragma omp sections nowait
         {
             //unlikely edge cases require different data to be accessed, so do those first (row vector and column vector)
-            #pragma omp section
+            //#pragma omp section
             if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
                 //if column vector, don't need to do for left or right as BC already imposed along entire column
                     for(int j = 1; j < Ny - 1; ++j) {
@@ -326,7 +326,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
                     }
             }
 
-            #pragma omp section
+            //#pragma omp section
             if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
                 //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row
                 for(int i = 1; i < Nx - 1; ++i) {
@@ -337,7 +337,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             //otherwise, for the general case, compute process edge data
             
             //only compute bottom row if not at bottom boundary of Cartesian grid  
-            #pragma omp section
+            //#pragma omp section
             if((Nx != 1) & (Ny != 1) & (bottomRank != MPI_PROC_NULL)) {
                 for(int i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
@@ -346,7 +346,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             }
                 
             //only compute top row if not at top boundary of Cartesian grid
-            #pragma omp section
+            //#pragma omp section
             if((Nx != 1) & (Ny != 1) & (topRank != MPI_PROC_NULL)) {
                 for(int i = 1; i < Nx - 1; ++i) {
                     out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
@@ -355,7 +355,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             }
                 
             //only compute left column if not at left boundary of Cartesian grid
-            #pragma omp section
+            //#pragma omp section
             if((Nx != 1) & (Ny != 1) & (leftRank != MPI_PROC_NULL)) {
                 for(int j = 1; j < Ny - 1; ++j) {
                     out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
@@ -364,7 +364,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             }
                 
             //only compute right coluymn if not at right boundary of Cartesian grid
-            #pragma omp section
+            //#pragma omp section
             if((Nx != 1) & (Ny != 1) & (rightRank != MPI_PROC_NULL)) {
                 for(int j = 1; j < Ny - 1; ++j) {
                     out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
@@ -401,7 +401,7 @@ void SolverCG::Precondition(double* in, double* out) {
                     out[IDX(i,j)] = in[IDX(i,j)]/factor;
                 }
             }
-
+    
         //---------------------------------------------Finally, Precondition Edges of each Local Domain ---------------------------------------//
         //lots of if statements, with each process computing four, so split the eight checks up between the processes as sections
         //sections rather than fors as fors were found to reduce performance
