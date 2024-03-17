@@ -136,10 +136,20 @@ void SolverCG::Solve(double* b, double* x) {
         ApplyOperator(p, t);                        //compute -nabla^2 p and store in t (effectively A*p_k)
 
         //division cannot be performed locally and reduced, numerator and denominator must be summed separately then divided for global alpha (and beta) 
-        alphaDen = cblas_ddot(n, t, 1, p, 1);                                               // denominator of alpha = p_k^T*A*p_k
-        alphaNum = cblas_ddot(n, r, 1, z, 1);                                               // numerator of alpha = r^k^T*r_k              
-        betaDen  = cblas_ddot(n, r, 1, z, 1);                                               // denominator of beta = z_k^T*r_k (for later in the algorithm)
-
+        //all three blas operations independent of each other, use sections to also exploit blas speed
+        #pragma omp parallel shared(n,t,p,r,z,alphaDen,alphaNum,betaDen)
+        {
+            #pragma omp sections nowait
+            {
+                #pragma omp section
+                alphaDen = cblas_ddot(n, t, 1, p, 1);                                               // denominator of alpha = p_k^T*A*p_k
+                #pragma omp section
+                alphaNum = cblas_ddot(n, r, 1, z, 1);                                               // numerator of alpha = r^k^T*r_k              
+                #pragma omp section
+                betaDen  = cblas_ddot(n, r, 1, z, 1);                                               // denominator of beta = z_k^T*r_k (for later in the algorithm)
+            }
+        }
+        
         MPI_Allreduce(&alphaDen,&globalAlphaTemp,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);      //sum up local alpha denominators
         MPI_Allreduce(&alphaNum,&globalAlpha, 1, MPI_DOUBLE, MPI_SUM,MPI_COMM_WORLD);       //sum up local alpha numerators
 
@@ -181,7 +191,6 @@ void SolverCG::Solve(double* b, double* x) {
 
     if((rowRank == 0) & (colRank == 0))
         cout << "Converged in " << k << " iterations. eps = " << globalEps << endl;
-
     }
 
 
@@ -216,19 +225,19 @@ void SolverCG::ApplyOperator(double* in, double* out) {
 
     //each i loop should take roughly same amount of time, so use static scheduling to divided procedure evenly
     #pragma omp parallel for schedule(static)
-    for (int j = 1; j < Ny - 1; ++j) {
-        for (int i = 1; i < Nx - 1; ++i) {                      //i denotes x grids, j denotes y grids
-            out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
-                              + 2.0*in[IDX(i,   j)]
-                              -     in[IDX(i+1, j)])*dx2i       //calculates part of equation for second-order central-difference related to x
-                          + ( -     in[IDX(i, j-1)]
-                              + 2.0*in[IDX(i,   j)]
-                              -     in[IDX(i, j+1)])*dy2i;      //calculates part of equation for second-order central-difference related to y
+        for (int j = 1; j < Ny - 1; ++j) {
+            for (int i = 1; i < Nx - 1; ++i) {                      //i denotes x grids, j denotes y grids
+                out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
+                                + 2.0*in[IDX(i,   j)]
+                                -     in[IDX(i+1, j)])*dx2i       //calculates part of equation for second-order central-difference related to x
+                            + ( -     in[IDX(i, j-1)]
+                                + 2.0*in[IDX(i,   j)]
+                                -     in[IDX(i, j+1)])*dy2i;      //calculates part of equation for second-order central-difference related to y
+            }
+            //jm1++;                                                  //jm1 and jp1 incremented separately outside i loop
+            //jp1++;                                                  //this is done instead of j-1,j+1 in inner loop to encourage vectorisation
         }
-        //jm1++;                                                  //jm1 and jp1 incremented separately outside i loop
-        //jp1++;                                                  //this is done instead of j-1,j+1 in inner loop to encourage vectorisation
-    }
-    
+        
     //------------------------------------------Receive Boundary Data, needed for next step--------------------------------------------------------------//
     
     MPI_Recv(bottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);    //bottom row of process is data sent up from process below
@@ -300,53 +309,61 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     }
     //----------------------------------------------Compute Edges of each local domain------------------------------------------//
     
-    //unlikely edge cases require different data to be accessed, so do those first (row vector and column vector)
-    if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-        //if column vector, don't need to do for left or right as BC already imposed along entire column
-        for(int j = 1; j < Ny - 1; ++j) {
-            out[j] = ( - leftData[j] + 2.0 * in[j] - rightData[j]) * dx2i
-                    + ( -  in[j-1] + 2.0 * in[j] - in[j+1]) * dy2i;
+    #pragma omp parallel
+    {        
+        //unlikely edge cases require different data to be accessed, so do those first (row vector and column vector)
+        if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+            //if column vector, don't need to do for left or right as BC already imposed along entire column
+            #pragma omp for schedule(static) nowait
+                for(int j = 1; j < Ny - 1; ++j) {
+                    out[j] = ( - leftData[j] + 2.0 * in[j] - rightData[j]) * dx2i
+                            + ( -  in[j-1] + 2.0 * in[j] - in[j+1]) * dy2i;
+                }
         }
-    }
-    else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-        //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row
-        for(int i = 1; i < Nx - 1; ++i) {
-            out[i] = ( - in[i-1] + 2.0 * in[i] - in[i+1] ) * dx2i
-                    + ( - bottomData[i] + 2.0 * in[i] - topData[i]) * dy2i;
+        else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+            //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row
+            #pragma omp for schedule(static) nowait
+                for(int i = 1; i < Nx - 1; ++i) {
+                    out[i] = ( - in[i-1] + 2.0 * in[i] - in[i+1] ) * dx2i
+                            + ( - bottomData[i] + 2.0 * in[i] - topData[i]) * dy2i;
+                }
         }
-    }
-    else {//otherwise, for the general case, compute process edge data
-        //only compute bottom row if not at bottom boundary of Cartesian grid
-        if(bottomRank != MPI_PROC_NULL) {
-            for(int i = 1; i < Nx - 1; ++i) {
-                out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
-                            + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
+        else {//otherwise, for the general case, compute process edge data
+            //only compute bottom row if not at bottom boundary of Cartesian grid
+            if(bottomRank != MPI_PROC_NULL) {
+                #pragma omp for schedule(static) nowait
+                    for(int i = 1; i < Nx - 1; ++i) {
+                        out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
+                                    + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
+                    }
             }
-        }
-        
-        //only compute top row if not at top boundary of Cartesian grid
-        if(topRank != MPI_PROC_NULL) {
-            for(int i = 1; i < Nx - 1; ++i) {
-                out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
-                            + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
+            
+            //only compute top row if not at top boundary of Cartesian grid
+            if(topRank != MPI_PROC_NULL) {
+                #pragma omp for schedule(static) nowait
+                    for(int i = 1; i < Nx - 1; ++i) {
+                        out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
+                                    + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
+                    }
             }
-        }
-        
-        //only compute left column if not at left boundary of Cartesian grid
-        if(leftRank != MPI_PROC_NULL) {
-            for(int j = 1; j < Ny - 1; ++j) {
-                out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
-                            + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
+            
+            //only compute left column if not at left boundary of Cartesian grid
+            if(leftRank != MPI_PROC_NULL) {
+                #pragma omp for schedule(static) nowait
+                    for(int j = 1; j < Ny - 1; ++j) {
+                        out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
+                                    + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
+                    }
             }
-        }
-        
-        //only compute right coluymn if not at right boundary of Cartesian grid
-        if(rightRank != MPI_PROC_NULL) {
-            for(int j = 1; j < Ny - 1; ++j) {
-                out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
-                            + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
+            
+            //only compute right coluymn if not at right boundary of Cartesian grid
+            if(rightRank != MPI_PROC_NULL) {
+                #pragma omp for schedule(static) nowait
+                    for(int j = 1; j < Ny - 1; ++j) {
+                        out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
+                                    + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
+                    }
             }
-
         }
     }
 
@@ -360,19 +377,81 @@ void SolverCG::Precondition(double* in, double* out) {
     double dy2i = 1.0/dy/dy;                                //optimised code, compute and store 1/(dx)^2 and 1/(dy)^2
     double factor = 2.0*(dx2i + dy2i);                      //precondition will involve dividing all non-boundary terms by 2(1/dx/dx + 1/dy/dy)
     
-    /* Procedure is to first compute all interior points, then corners of each local domain, then edges
+    /* Procedure is to first compute all interior points, then edges then corners of each local domain
+    This means only one parallel region needs to be created, not two, so overheads reduced
     This allows each domain, whether it is on boundary or not, to be computed with correct computations
     Each local domain has a boundary, question is whether it is a global boundary or not
     The following procedure allows for the loops to be vectorised by the compiler as no if statements within loops
     */
 
     //-------------------------------------------------Precondition Interior Points First--------------------------------------------//
-    for (i = 1; i < Nx - 1; ++i) {
-        for (j = 1; j < Ny - 1; ++j) {                  
-            out[IDX(i,j)] = in[IDX(i,j)]/factor;
+    
+    #pragma omp parallel private(i,j)
+    {
+        #pragma omp for schedule(static) nowait 
+            for (j = 1; j < Ny - 1; ++j) {                  
+                for (i = 1; i < Nx - 1; ++i) {
+                    out[IDX(i,j)] = in[IDX(i,j)]/factor;
+                }
+            }
+
+        //---------------------------------------------Finally, Precondition Edges of each Local Domain ---------------------------------------//
+        if( leftRank != MPI_PROC_NULL) {        
+        //if process not on left boundary, precodnition LHS, otherwise maintain same BC
+            #pragma omp for schedule(static) nowait      
+                for(j = 1; j < Ny-1; ++j) {
+                    out[IDX(0,j)] = in[IDX(0,j)]/factor;
+                }
+        }
+        else {
+            #pragma omp for schedule(static) nowait       
+                for(j = 1; j < Ny-1; ++j) {
+                    out[IDX(0,j)] = in[IDX(0,j)];
+                }
+        }
+        
+        if(rightRank != MPI_PROC_NULL) {
+            //if process not on right boundary, precodnition RHS, otherwise maintain same BC
+            #pragma omp for schedule(static) nowait   
+                for(j = 1; j < Ny - 1; ++j) {
+                    out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)]/factor;
+                }
+        }
+        else {
+            #pragma omp for schedule(static) nowait   
+                for(j = 1; j < Ny - 1; ++j) {
+                    out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)];
+                }
+        }
+        
+        if(bottomRank != MPI_PROC_NULL) {   
+            //if process not on bottom boundary, precodntion bottom row, otherwise maintain same BC
+            #pragma omp for schedule(static) nowait   
+                for(i = 1; i < Nx - 1; ++i) {
+                    out[IDX(i,0)] = in[IDX(i,0)]/factor;
+                }
+        }
+        else {
+            #pragma omp for schedule(static) nowait   
+                for(i = 1; i < Nx - 1; ++i) {
+                    out[IDX(i,0)] = in[IDX(i,0)];
+                }
+        }
+        
+        if(topRank != MPI_PROC_NULL) {   
+            //if process not on top boundary, precodntion top row, otherwise maintain same BC
+            #pragma omp for schedule(static) nowait   
+                for(i = 1; i < Nx - 1; ++i) {
+                    out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)]/factor;
+                }
+        }
+        else {
+            #pragma omp for schedule(static) nowait   
+                for(i = 1; i < Nx - 1; ++i) {
+                    out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)];
+                }
         }
     }
-
     //---------------------------------------------Precondition Corners of each Local Domain -----------------------------------------//
     if( (leftRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) {
         //if process is on the left or bottom, impose BC on bottom left corner 
@@ -405,55 +484,6 @@ void SolverCG::Precondition(double* in, double* out) {
     else{
         out[IDX(Nx-1,Ny-1)] = in[IDX(Nx-1,Ny-1)]/factor;
     }
-    
-    //---------------------------------------------Finally, Precondition Edges of each Local Domain ---------------------------------------//
-    if( leftRank != MPI_PROC_NULL) {        
-        //if process not on left boundary, precodnition LHS, otherwise maintain same BC
-        for(j = 1; j < Ny-1; ++j) {
-            out[IDX(0,j)] = in[IDX(0,j)]/factor;
-        }
-    }
-    else {
-        for(j = 1; j < Ny-1; ++j) {
-            out[IDX(0,j)] = in[IDX(0,j)];
-        }
-    }
-    
-    if(rightRank != MPI_PROC_NULL) {
-        //if process not on right boundary, precodnition RHS, otherwise maintain same BC
-        for(j = 1; j < Ny - 1; ++j) {
-            out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)]/factor;
-        }
-    }
-    else {
-        for(j = 1; j < Ny - 1; ++j) {
-            out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)];
-        }
-    }
-    
-    if(bottomRank != MPI_PROC_NULL) {   
-        //if process not on bottom boundary, precodntion bottom row, otherwise maintain same BC
-        for(i = 1; i < Nx - 1; ++i) {
-            out[IDX(i,0)] = in[IDX(i,0)]/factor;
-        }
-    }
-    else {
-         for(i = 1; i < Nx - 1; ++i) {
-            out[IDX(i,0)] = in[IDX(i,0)];
-        }
-    }
-    
-    if(topRank != MPI_PROC_NULL) {   
-        //if process not on top boundary, precodntion top row, otherwise maintain same BC
-        for(i = 1; i < Nx - 1; ++i) {
-            out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)]/factor;
-        }
-    }
-    else {
-         for(i = 1; i < Nx - 1; ++i) {
-            out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)];
-        }
-    }
 }
 
 void SolverCG::ImposeBC(double* inout) {
@@ -463,31 +493,31 @@ void SolverCG::ImposeBC(double* inout) {
     #pragma omp parallel
     {
         if(bottomRank == MPI_PROC_NULL) {                           //if bottom process, impose BC on bottom row
-            #pragma omp for schedule(static)
-            for(int i = 0; i < Nx; ++i) {
-                inout[IDX(i,0)] = 0.0;
-            }
+            #pragma omp for schedule(static) nowait
+                for(int i = 0; i < Nx; ++i) {
+                    inout[IDX(i,0)] = 0.0;
+                }
         }
         
         if(topRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(static)
-            for(int i = 0; i < Nx; ++i) {
-                inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
-            }
+            #pragma omp for schedule(static) nowait
+                for(int i = 0; i < Nx; ++i) {
+                    inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
+                }
         }
         
         if(leftRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(static)
-            for(int j = 0; j < Ny; ++j) {
-                inout[IDX(0,j)] = 0.0;                              //BC on left column
-            }
+            #pragma omp for schedule(static) nowait
+                for(int j = 0; j < Ny; ++j) {
+                    inout[IDX(0,j)] = 0.0;                              //BC on left column
+                }
         }
         
         if(rightRank == MPI_PROC_NULL) {
-            #pragma omp for schedule(static)
-            for(int j = 0; j < Ny; ++j) {
-                inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
-            }
+            #pragma omp for schedule(static) nowait
+                for(int j = 0; j < Ny; ++j) {
+                    inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
+                }
         }
     }
 
