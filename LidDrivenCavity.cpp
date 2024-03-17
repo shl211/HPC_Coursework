@@ -545,69 +545,76 @@ void LidDrivenCavity::Advance()
     MPI_Recv(sRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);                 //left column of process is data sent from process to left
                                                  
 
-    //---------------------------------Compute Voriticty BCs--------------------------------------------------------------------------//
+     //---------------------------------Compute Voriticty BCs--------------------------------------------------------------------------//
     //break up BC assignment to top bottom left right separately, due to gridded nature
+    //every if statement can be executed independently, for loops were slowing things down, use sections instead
     #pragma omp parallel
     {
-        if(bottomRank == MPI_PROC_NULL) {          //assign bottom BC
-            if((Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {      
-                //first capture edge case where only one row, so second row in process above  but do nothing if top left or right corner as should be untouched 0
-                #pragma omp for schedule(dynamic) nowait
-                for(int i = 1; i < Nx - 1; ++i) {
-                    v[IDX(i,0)]     = 2.0 * dy2i * (s[IDX(i,0)]   - sTopData[i]);
+        #pragma omp sections nowait
+        {
+            //assign bottom BC
+            #pragma omp section
+                if(bottomRank == MPI_PROC_NULL & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {             
+                    //if at global bottom grid, but domain is row vector, then second row is in process above
+                    //however, do nothing if we are at bottom left or right corner as should be untouched 0
+                    for(int i = 1; i < Nx - 1; ++i) {
+                        v[IDX(i,0)]     = 2.0 * dy2i * (s[IDX(i,0)]   - sTopData[i]);
+                    }
                 }
-            }
-            else {
-                //for more general case 
-                #pragma omp for schedule(dynamic) nowait
-                for(int i = 1; i < Nx-1; ++i)
-                    v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
-                
-                //if not bottom left process, also compute bottom left corner
-                if(leftRank != MPI_PROC_NULL) 
-                    v[IDX(0,0)] = 2.0 * dy2i * (s[IDX(0,0)] - s[IDX(0,1)]);
-                
-                //if not top bottom process, also compute bottom right corner
-                if(rightRank != MPI_PROC_NULL)
-                    v[IDX(Nx-1,0)] = 2.0 * dy2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)]);
-            }
-        }
-        
-        if(topRank == MPI_PROC_NULL) {              //assign top BC
-            if((Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) { 
-                //first capture edge case where only one row, so second row in process below, but do nothing if top left or right corner
-                #pragma omp for schedule(dynamic) nowait
+            
+            #pragma omp section
+                if(bottomRank == MPI_PROC_NULL & !( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {  
+                    //otherwise, for general case at bottom of grid, impose these bottom BCs 
+                    for(int i = 1; i < Nx-1; ++i)
+                        v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
+                        
+                    //if not bottom left process, also compute bottom left corner
+                    if(leftRank != MPI_PROC_NULL) 
+                        v[IDX(0,0)] = 2.0 * dy2i * (s[IDX(0,0)] - s[IDX(0,1)]);
+                        
+                    //if not top bottom process, also compute bottom right corner
+                    if(rightRank != MPI_PROC_NULL)
+                        v[IDX(Nx-1,0)] = 2.0 * dy2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)]);
+                }
+            
+            //assign top BC
+            #pragma omp section
+            if(topRank == MPI_PROC_NULL & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {              
+                //if at global top grid, but domain is row vector, then second row is in process below
+                //however, do nothing if we are at top left or right corner as should be untouched 0                    
                 for(int i = 1; i < Nx - 1; ++i) {
                     v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - sBottomData[i]) - 2.0 * dyi * U;
                 }
             }
-            else {      
-                //more general case
-                #pragma omp for schedule(dynamic) nowait
+                
+            #pragma omp section
+            if(topRank == MPI_PROC_NULL & !( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {              
+                //otherwise, for general case at top of grid, impose these top BCs 
                 for(int i = 1; i < Nx - 1; ++i)
                     v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - s[IDX(i,Ny-2)]) - 2.0 * dyi * U;
-                
+                    
                 //if not top left process, also compute top left corner
                 if(leftRank != MPI_PROC_NULL)
                     v[IDX(0,Ny-1)] = 2.0 * dy2i * (s[IDX(0,Ny-1)] - s[IDX(0,Ny-2)]) - 2.0 * dyi * U;
-                
+                    
                 //if not top right process, alaso compute top right corner
                 if(rightRank != MPI_PROC_NULL)
                     v[IDX(Nx-1,Ny-1)] = 2.0 * dy2i * (s[IDX(Nx-1,Ny-1)] - s[IDX(Nx-1,Ny-2)]) - 2.0 * dyi * U;
             }
-        }
-        
-        if(leftRank == MPI_PROC_NULL) {              //assign left BC
-            if((Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-            //first capture edge case where only one column, so second column in process to the right, unless a corner boundary -> leave untouched
-                #pragma omp for schedule(dynamic) nowait
+            
+            //assign left BC
+            #pragma omp section
+            if(leftRank == MPI_PROC_NULL & ( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
+                //if at global left grid, but domain is column vector, then second column is in process to right
+                //however, do nothing if we are at top or bottom left corner as should be untouched 0    
                 for(int j = 1; j < Ny - 1; ++j) {
                     v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - sRightData[j]);
                 }
             }
-            else {      
-                //more general case
-                #pragma omp for schedule(dynamic) nowait
+
+            #pragma omp section
+            if(leftRank == MPI_PROC_NULL & !( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
+                //otherwise, for general case at left of grid, impose these left BCs 
                 for(int j = 1; j < Ny - 1; ++j)
                     v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - s[IDX(1,j)]);
 
@@ -619,91 +626,91 @@ void LidDrivenCavity::Advance()
                 if(bottomRank != MPI_PROC_NULL)
                     v[IDX(0,0)] = 2.0 * dx2i * (s[IDX(0,0)] - s[IDX(1,0)]);
             }
-        }
-        
-        if(rightRank == MPI_PROC_NULL) {              //assign right BC
-            if((Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-            //first capture edge case where only one column, so second column in process to the left, unless a corner boundary -> leave untouched            
-                #pragma omp for schedule(dynamic) nowait
+            
+            //assign right BC
+            #pragma omp section
+            if(rightRank == MPI_PROC_NULL & ( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {              
+                //if at global right grid, but domain is column vector, then second column is in process to left
+                //however, do nothing if we are at top or bottom right corner as should be untouched 0
                 for(int j = 1; j < Ny - 1; ++j) {
                     v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - sLeftData[j]);
                 }
             }
-            else {      
-                //more general case
-                #pragma omp for schedule(dynamic) nowait
+
+            #pragma omp section
+            if(rightRank == MPI_PROC_NULL & !( (Nx == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) )) {   
+                //otherwise, for general case at right of grid, impose these left BCs 
                 for(int j = 1; j < Ny - 1; ++j)
                     v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - s[IDX(Nx-2,j)]);
-                
+                    
                 //if not top right process, also compute top right corner
                 if(topRank != MPI_PROC_NULL)
                     v[IDX(Nx-1,Ny-1)] = 2.0 * dx2i * (s[IDX(Nx-1,Ny-1)] - s[IDX(Nx-2,Ny-1)]);
-            
+                
                 //if not bottom right process, also compute bottom right corner
                 if(bottomRank != MPI_PROC_NULL)
                     v[IDX(Nx-1,0)] = 2.0 * dx2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-2,0)]);
             }
-        }
 
-        //-----------------------------Compute Vorticity for Edges of each Local Domain-------------------------------------------//
+            //-----------------------------Compute Vorticity for Edges of each Local Domain-------------------------------------------//
 
-        if((Nx == 1) & (Ny > 1 )& !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {          
-        //if domain is column vector and not on left right boundary edge, then compute data between top and bottom corners
-            #pragma omp for schedule(dynamic) nowait
-            for(int j = 1; j < Ny - 1; ++j) {
-                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])                     //column accesses left and right data
-                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            #pragma omp section
+            if((Nx == 1) & (Ny > 1 )& !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {          
+            //if domain is column vector and not on left right boundary edge, then compute data between top and bottom corners
+                for(int j = 1; j < Ny - 1; ++j) {
+                    v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])                     //column accesses left and right data
+                                + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+                }
             }
-        }
-        else if ((Nx > 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-        //if domain is row vector and not on top bottom boundary edge, then compute data between left and right corners
-            #pragma omp for schedule(dynamic) nowait
-            for(int i = 1; i < Nx - 1; ++i) {
-                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])                   //row accesses bottom and top data
-                            + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
+
+            #pragma omp section
+            if ((Nx > 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+            //if domain is row vector and not on top bottom boundary edge, then compute data between left and right corners
+                for(int i = 1; i < Nx - 1; ++i) {
+                    v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])                   //row accesses bottom and top data
+                                + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
+                }
             }
-        }
-        else {
-            //all other cases only need access to one dataset from other processes
-            if(bottomRank != MPI_PROC_NULL) {   
+
+            //for general case where only one daset from other process is needed
+            #pragma omp section
+            if(bottomRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
                 //if process at bottom of grid, don't need to do anything as BC imposed
-                #pragma omp for schedule(dynamic) nowait
                 for(int i = 1; i < Nx - 1; ++i) {
                     v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])               //bottom row, requires access to bottom
                                 + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
                 }
             }
-            
-            if(topRank != MPI_PROC_NULL) {      
+
+            #pragma omp section
+            if(topRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
                 //if process at top of grid, don't need to do anything as BC imposed
-                #pragma omp for schedule(dynamic) nowait
                 for(int i = 1; i < Nx - 1; ++i) {
                     v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)])    //top row, requires access to top
                                 + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
                 }
             }
-            
-            if(leftRank != MPI_PROC_NULL) {     
+
+            #pragma omp section
+            if(leftRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {
                 //if process at left of grid, don't need to do anything as BC imposed
-                #pragma omp for schedule(dynamic) nowait
                 for(int j = 1; j < Ny - 1; ++j) {
                     v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])                   //left column, requires access to teh left
                                 + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
                 }
             }
-            
-            if(rightRank != MPI_PROC_NULL) {        
+
+            #pragma omp section
+            if(rightRank != MPI_PROC_NULL & Nx != 1 & Ny != 1) {        
                 //if process at right of grid, don't need to do anything as BC imposed
-                #pragma omp for schedule(dynamic) nowait
                 for(int j = 1; j < Ny - 1; ++j) {
                     v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-2,j)])         //right column, requires access to teh righ
                                 + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
-
                 }
             }
         }
     }
-
+    
     //------------------------------------------Compute Vorticity on Corners of each Local Domain----------------------------------------//
 
     if((Nx == 1) & (Ny == 1) & !boundaryDomain) {   
