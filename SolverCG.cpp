@@ -302,61 +302,61 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     }
     //----------------------------------------------Compute Edges of each local domain------------------------------------------//
     //overheads associated with creating parallel region here exceeds any speed ups in the code
-    //for and sections were used, but pretty much always resulted in worse performance
+    //for and sections were tested and gains were negligible in some cases but pretty much always resulted in worse performance
     //Test case Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T=0.1 were used for benchmark tests
-    {       
         
-        //unlikely edge cases require different data to be accessed, so do those first (row vector and column vector)
-        if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-            //if column vector, don't need to do for left or right as BC already imposed along entire column
-                for(int j = 1; j < Ny - 1; ++j) {
-                    out[j] = ( - leftData[j] + 2.0 * in[j] - rightData[j]) * dx2i
-                            + ( -  in[j-1] + 2.0 * in[j] - in[j+1]) * dy2i;
-                }
-        }
-
-        if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-            //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row
-            for(int i = 1; i < Nx - 1; ++i) {
-                out[i] = ( - in[i-1] + 2.0 * in[i] - in[i+1] ) * dx2i
-                        + ( - bottomData[i] + 2.0 * in[i] - topData[i]) * dy2i;
-            }
-        }
-        //otherwise, for the general case, compute process edge data
-        
-        //only compute bottom row if not at bottom boundary of Cartesian grid  
-        if((Nx != 1) & (Ny != 1) & (bottomRank != MPI_PROC_NULL)) {
-            for(int i = 1; i < Nx - 1; ++i) {
-                out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
-                            + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
-            }
-        }
-            
-        //only compute top row if not at top boundary of Cartesian grid
-        if((Nx != 1) & (Ny != 1) & (topRank != MPI_PROC_NULL)) {
-            for(int i = 1; i < Nx - 1; ++i) {
-                out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
-                            + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
-            }
-        }
-            
-        //only compute left column if not at left boundary of Cartesian grid
-        if((Nx != 1) & (Ny != 1) & (leftRank != MPI_PROC_NULL)) {
+    //unlikely edge cases require different data to be accessed, so do those first (row vector and column vector)
+    if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+        //if column vector, don't need to do for left or right as BC already imposed along entire column
             for(int j = 1; j < Ny - 1; ++j) {
-                out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
-                            + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
+                out[j] = ( - leftData[j] + 2.0 * in[j] - rightData[j]) * dx2i
+                        + ( -  in[j-1] + 2.0 * in[j] - in[j+1]) * dy2i;
             }
-        }
-                
-            //only compute right coluymn if not at right boundary of Cartesian grid
-        if((Nx != 1) & (Ny != 1) & (rightRank != MPI_PROC_NULL)) {
-            for(int j = 1; j < Ny - 1; ++j) {
-                out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
-                            + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
-            }
-        }
-        
     }
+
+    if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+        //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row
+        for(int i = 1; i < Nx - 1; ++i) {
+            out[i] = ( - in[i-1] + 2.0 * in[i] - in[i+1] ) * dx2i
+                    + ( - bottomData[i] + 2.0 * in[i] - topData[i]) * dy2i;
+        }
+    }
+    //otherwise, for the general case, compute process edge data
+    
+    //only compute bottom row if not at bottom boundary of Cartesian grid  
+    if((Nx != 1) & (Ny != 1) & (bottomRank != MPI_PROC_NULL)) {
+        for(int i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
+                        + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
+        }
+    }
+        
+    //only compute top row if not at top boundary of Cartesian grid
+    if((Nx != 1) & (Ny != 1) & (topRank != MPI_PROC_NULL)) {
+        for(int i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
+                        + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
+        }
+    }
+        
+    //only compute left column if not at left boundary of Cartesian grid
+    if((Nx != 1) & (Ny != 1) & (leftRank != MPI_PROC_NULL)) {
+        for(int j = 1; j < Ny - 1; ++j) {
+            out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
+                        + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
+        }
+    }
+            
+        //only compute right coluymn if not at right boundary of Cartesian grid
+    if((Nx != 1) & (Ny != 1) & (rightRank != MPI_PROC_NULL)) {
+        #pragma omp for schedule(static) nowait
+        for(int j = 1; j < Ny - 1; ++j) {
+            out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
+                        + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
+        }
+    }
+        
+    
 
     //make sure all communication is completed before exiting the function
     MPI_Waitall(4,requests,MPI_STATUSES_IGNORE);
