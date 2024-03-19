@@ -504,11 +504,11 @@ void LidDrivenCavity::Advance()
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;    
 
-    //-------------------------------------------Send and Receive Streamfunction Boundary Data----------------------------------------------------------------//
-    /* Processes need adjacent streamfunction data to compute vorticity
-    While waiting for send, compute interior points of each local domain to reduce latency
-    note that if a process is at a global boundary and tries to send data past a boundary, Isend will try to send to MPI_PROC_NULL and return immediately
-    with no error and request handle will return immediatley; similar for receive, where receiving from MPI_PROC_NULL will also return immediately*/
+    //----------------------------------------------------------------------------------------------------------------------------------------------------------//
+    //-----------------------------------------Compute Current Vorticity----------------------------------------------------------------------------------------//
+    //----------------------------------------------------------------------------------------------------------------------------------------------------------//
+    //send adjacent streamfunction data, needed to compute edges of each local domain
+    //while waiting to send, compute interior points to reduce latency
 
     //row major storage, so top and bottom can be sent now
     MPI_Isend(s+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&requests[0]);                 //tag = 0 -> streamfunction data sent up
@@ -521,12 +521,12 @@ void LidDrivenCavity::Advance()
     MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);                      //tag = 2 -> streamfunction data sent left
     MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);                      //tag = 3 -> streamfunction data sent right
 
-    //compute interior vorticity points first to allow all processes to send; these do not require data from other processes
+    //compute interior vorticity points first
     #pragma omp parallel for schedule(dynamic)
         for (int i = 1; i < Nx - 1; ++i) {
             for (int j = 1; j < Ny - 1; ++j) {
-                v[IDX(i,j)] = dx2i*( 2.0 * s[IDX(i,j)] - s[IDX(i+1,j)] - s[IDX(i-1,j)])                 //relating to x terms
-                            + dy2i*( 2.0 * s[IDX(i,j)] - s[IDX(i,j+1)] - s[IDX(i,j-1)]);                //relating to y terms
+                v[IDX(i,j)] = dx2i*( 2.0 * s[IDX(i,j)] - s[IDX(i+1,j)] - s[IDX(i-1,j)])
+                            + dy2i*( 2.0 * s[IDX(i,j)] - s[IDX(i,j+1)] - s[IDX(i,j-1)]);
             }
         }
 
@@ -535,12 +535,9 @@ void LidDrivenCavity::Advance()
     MPI_Recv(sBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);               //top row of process is data send down from process above
     MPI_Recv(sLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);                   //right column of process is data sent from process to right
     MPI_Recv(sRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);                 //left column of process is data sent from process to left
-                                                 
 
-     //---------------------------------Compute Voriticty BCs--------------------------------------------------------------------------//
-    //break up BC assignment to top bottom left right separately, due to gridded nature
-    //no parallel region here, overheads with thread creation seem to outweigh benefits of giving each if statement separate thread
-    //sections and for constructs, when tested with Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T-0.1 showed worse performance when parallelised here
+    //------------------------------------------Assign BC----------------------------------------//                           
+    //no parallel region here as testing with Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T-0.1 always led to slower performance//
 
     //assign bottom BC
     if((bottomRank == MPI_PROC_NULL) & ( (Ny == 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) )) {             
@@ -583,7 +580,7 @@ void LidDrivenCavity::Advance()
         if(leftRank != MPI_PROC_NULL)
             v[IDX(0,Ny-1)] = 2.0 * dy2i * (s[IDX(0,Ny-1)] - s[IDX(0,Ny-2)]) - 2.0 * dyi * U;
             
-        //if not top right process, alaso compute top right corner
+        //if not top right process, also compute top right corner
         if(rightRank != MPI_PROC_NULL)
             v[IDX(Nx-1,Ny-1)] = 2.0 * dy2i * (s[IDX(Nx-1,Ny-1)] - s[IDX(Nx-1,Ny-2)]) - 2.0 * dyi * U;
     }
@@ -634,7 +631,7 @@ void LidDrivenCavity::Advance()
             v[IDX(Nx-1,0)] = 2.0 * dx2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-2,0)]);
     }
 
-    //-----------------------------Compute Vorticity for Edges of each Local Domain-------------------------------------------//
+    //------------------------------------------Compute Vorticity on Edges of each Local Domain----------------------------------------//
 
     if((Nx == 1) & (Ny > 1 )& !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {          
     //if domain is column vector and not on left right boundary edge, then compute data between top and bottom corners
@@ -684,7 +681,6 @@ void LidDrivenCavity::Advance()
                         + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
         }
     }
-
 
     //------------------------------------------Compute Vorticity on Corners of each Local Domain----------------------------------------//
     //don't parallelise as overheads will exceed serial computation of four points
@@ -750,9 +746,9 @@ void LidDrivenCavity::Advance()
     //wait for communication to complete, before proceeding with next communication; allows requests to be reused
     MPI_Waitall(4,requests,MPI_STATUSES_IGNORE);   
 
-    //-------------------------------------------Send and Receive Vorticity Boundary Data----------------------------------------------------//
-    //same process as previously mentioned, now for TIME ADVANCE VORTICITY
-
+    //------------------------------------------------------------------------------------------------------------------------------------------//
+    //----------------------------------------------------TIME ADVANCE VORTICITY----------------------------------------------------------------//
+    //------------------------------------------------------------------------------------------------------------------------------------------//
     //send vorticity data on edge of each domain to adjacent grid
     MPI_Isend(v+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&requests[0]);     //tag = 0 -> streamfunction data sent up
     MPI_Isend(v, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&requests[1]);            //tag = 1 -> streamfunction data sent down
@@ -887,7 +883,7 @@ void LidDrivenCavity::Advance()
     
     //--------------------------------Compute Time Advance Vorticity for Edges of each Local Domain------------------------------------------//
     //lots of tasks (if statements) can be executed concurrently; sections instead of fors as seems to improve performance
-    //mno parallel region here as thread overheads exceed increase in speed of O(n) operations
+    //no parallel region here as thread overheads exceed increase in speed of O(n) operations
     //tested with same benchmark, slowed things down when for or sections were introduced
     if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL )|( rightRank == MPI_PROC_NULL))) {
         //if column vector, don't need to do for left or right as BC already imposed
