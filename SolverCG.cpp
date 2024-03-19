@@ -199,7 +199,7 @@ void SolverCG::Solve(double* b, double* x) {
 ApplyOperator requires five point stencil, so will need boundary data from adjacent grids.
 To avoid latency, boundary data sent first, and while waiting for receive, do interior points first, which do not require other process data
 Then receive boundary data, and compute corners followed by edges of each local domain. Corners and edges require access to differnet arrays
-Could be simplified with packed storage, fastercomputations due to memory layout but this is lost if want to minimse communication latency 
+Could be simplified with packed storage, faster computations due to memory layout but this is lost if want to minimse communication latency 
 via the method outlined above. Note that global BC will be implemented in ImposeBC()
 */
 void SolverCG::ApplyOperator(double* in, double* out) {
@@ -212,7 +212,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     MPI_Isend(in+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&requests[0]);        //send data on top of current process up -> tag 0
     MPI_Isend(in,Nx,MPI_DOUBLE,bottomRank,1,comm_col_grid,&requests[1]);                    //send data on bottom of current process down -> tag 1
 
-    //now, extract relevant daata for left and right columns and send, done after first sends to give time for above data to be sent to minimise latency
+    //now, extract relevant data for left and right columns and send, done after first sends to give time for above data to be sent to minimise latency
     cblas_dcopy(Ny,in,Nx,tempLeft,1);                                                       //use temp buffer to prevent accidental data overwrite with Isend
     cblas_dcopy(Ny,in+Nx-1,Nx,tempRight,1);
 
