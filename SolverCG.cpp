@@ -61,6 +61,8 @@ SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, M
         boundaryDomain = false;
     else
         boundaryDomain = true;                      //check whether the current process is on the edge of the global domain/grid
+
+    
 }
 
 SolverCG::~SolverCG()
@@ -224,9 +226,9 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     double dy2i = 1.0/dy/dy;
 
     //dynamic scheduling for load balancing -> after testing, more effective than static
-    #pragma omp parallel for schedule(dynamic)
-        for (int j = 1; j < Ny - 1; ++j) {
-            for (int i = 1; i < Nx - 1; ++i) {
+    #pragma omp parallel for schedule(dynamic) private(i,j)
+        for (j = 1; j < Ny - 1; ++j) {
+            for (i = 1; i < Nx - 1; ++i) {
                 out[IDX(i,j)] = ( -     in[IDX(i-1, j)]
                                 + 2.0*in[IDX(i,   j)]
                                 -     in[IDX(i+1, j)])*dx2i
@@ -318,7 +320,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     //unlikely edge cases require different data to be accessed, so do those first (row vector and column vector)
     //if column vector, don't need to do for left or right as BC already imposed along entire column
     if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-        for(int j = 1; j < Ny - 1; ++j) {
+        for(j = 1; j < Ny - 1; ++j) {
             out[j] = ( - leftData[j] + 2.0 * in[j] - rightData[j]) * dx2i
                     + ( -  in[j-1] + 2.0 * in[j] - in[j+1]) * dy2i;
         }
@@ -326,7 +328,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
 
     //if row vector, don't need to do for top and bottom rows as BC already imposed along entire row
     if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-        for(int i = 1; i < Nx - 1; ++i) {
+        for(i = 1; i < Nx - 1; ++i) {
             out[i] = ( - in[i-1] + 2.0 * in[i] - in[i+1] ) * dx2i
                     + ( - bottomData[i] + 2.0 * in[i] - topData[i]) * dy2i;
         }
@@ -335,28 +337,28 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     //otherwise, for the general case, compute process edge data
     //only compute *** row if not at *** boundary of Cartesian grid (where ***Rank != MPI_PROC_NULL)
     if((Nx != 1) & (Ny != 1) & (bottomRank != MPI_PROC_NULL)) {
-        for(int i = 1; i < Nx - 1; ++i) {
+        for(i = 1; i < Nx - 1; ++i) {
             out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
                         + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
         }
     }
         
     if((Nx != 1) & (Ny != 1) & (topRank != MPI_PROC_NULL)) {
-        for(int i = 1; i < Nx - 1; ++i) {
+        for(i = 1; i < Nx - 1; ++i) {
             out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
                         + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
         }
     }
         
     if((Nx != 1) & (Ny != 1) & (leftRank != MPI_PROC_NULL)) {
-        for(int j = 1; j < Ny - 1; ++j) {
+        for(j = 1; j < Ny - 1; ++j) {
             out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
                         + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
         }
     }
             
     if((Nx != 1) & (Ny != 1) & (rightRank != MPI_PROC_NULL)) {
-        for(int j = 1; j < Ny - 1; ++j) {
+        for(j = 1; j < Ny - 1; ++j) {
             out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
                         + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
         }
@@ -368,7 +370,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
 
 //procedure once again is compute interior points, edges, then corners
 void SolverCG::Precondition(double* in, double* out) {
-    int i, j;
+
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;
     double factor = 2.0*(dx2i + dy2i);                      //precondition will involve dividing all non-boundary terms by 2(1/dx/dx + 1/dy/dy)
@@ -491,32 +493,33 @@ void SolverCG::ImposeBC(double* inout) {
     //only impose BC on relevant boundaries of the boundary processes
     //negligible performance difference between section and for, use for loop as easier
     //at most two statements will ever be executed, so use for construct rather than sections
-    #pragma omp parallel
+
+    #pragma omp parallel private(i,j)
     {
         if(bottomRank == MPI_PROC_NULL) {                               //if bottom process, impose BC on bottom row
             #pragma omp for schedule(dynamic) nowait
-                for(int i = 0; i < Nx; ++i) {
+                for(i = 0; i < Nx; ++i) {
                     inout[IDX(i,0)] = 0.0;
                 }
         }
         
         if(topRank == MPI_PROC_NULL) {
             #pragma omp for schedule(dynamic) nowait
-                for(int i = 0; i < Nx; ++i) {
+                for(i = 0; i < Nx; ++i) {
                     inout[IDX(i,Ny-1)] = 0.0;                           //BC on top row
                 }
         }
         
         if(leftRank == MPI_PROC_NULL) {
             #pragma omp for schedule(dynamic) nowait
-                for(int j = 0; j < Ny; ++j) {
+                for(j = 0; j < Ny; ++j) {
                     inout[IDX(0,j)] = 0.0;                              //BC on left column
                 }
         }
         
         if(rightRank == MPI_PROC_NULL) {
             #pragma omp for schedule(dynamic) nowait
-                for(int j = 0; j < Ny; ++j) {
+                for(j = 0; j < Ny; ++j) {
                     inout[IDX(Nx-1,j)] = 0.0;                           //BC on right column
                 }
         }
