@@ -238,6 +238,28 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             }
         }
 
+   /*         int tile_size_x = 64;
+    int tile_size_y = 64;
+    int ii,jj;
+    #pragma omp parallel for schedule(dynamic) private(i,j,ii,jj)
+        for (j = 1; j < Ny - 1; j += tile_size_y) {
+            for (i = 1; i < Nx - 1; i += tile_size_x) {
+                // Process a tile of size tile_size_x by tile_size_y
+                for (jj = j; jj < min(Ny - 1, j + tile_size_y); ++jj) {
+                    for (ii = i; ii < min(Nx - 1, i + tile_size_x); ++ii) {
+                        out[IDX(ii,jj)] = ( -     in[IDX(ii-1, jj)]
+                                        + 2.0*in[IDX(ii,   jj)]
+                                        -     in[IDX(ii+1, jj)])*dx2i
+                                    + ( -     in[IDX(ii, jj-1)]
+                                        + 2.0*in[IDX(ii,   jj)]
+                                        -     in[IDX(ii, jj+1)])*dy2i;
+                    }
+                }
+            }
+        }
+*/
+
+
     //receive the data required for calculating boundary data of each local domain    
     MPI_Recv(bottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);    //bottom row of process is data sent up from process below
     MPI_Recv(topData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid, MPI_STATUS_IGNORE);         //top row of process is data sent down from process above
