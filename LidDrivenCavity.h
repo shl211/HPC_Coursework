@@ -210,10 +210,22 @@ private:
      ******************************************************************************************************************************************/
     void Advance();
 
+    /**
+     * @brief Computes vorticity at the current time step from streamfunction at the current time step
+     ******************************************************************************************************************************************/
     void ComputeVorticity();
 
+    /**
+     * @brief Computes time advanced vorticity from the vorticity and streamfunction at the current time step
+     ******************************************************************************************************************************************/
     void ComputeTimeAdvanceVorticity();
 
+    /**
+     * @brief Compute the velocity from the streafunction
+     * @param[out] u0   Horizontal velocity
+     * @param[out] u1   Vertical velocity
+     ******************************************************************************************************************************************/
+    void ComputeVelocity(double* u0, double* u1);
 
     /**
    * @brief Setup Cartesian grid and column and row communicators
