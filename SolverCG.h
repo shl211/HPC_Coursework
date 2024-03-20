@@ -75,8 +75,7 @@ private:
     int leftRank;       ///<rank of process to left of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to left
     int rightRank;      ///<rank of process to right of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to right
 
-    int i,j;
-    //double dx2i,dy2i,factor;
+    int i,j;            ///<loop counters
 
     /// MPI_Request handle to check data send -> [0] = send to top, [1] = send to bottom, [2] = send left, [3] = send right
     MPI_Request requests[4];                    

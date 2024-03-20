@@ -248,8 +248,8 @@ void SolverCG::ApplyOperator(double* in, double* out) {
         out[0] = ( - leftData[0] + 2.0*in[0] - rightData[0] ) * dx2i
                 + (- bottomData[0] + 2*in[0] - topData[0] ) * dy2i; 
     }
+    //unless at global left/right where BC is imposed, if local domain is column vector, do:
     else if((Nx == 1) & (Ny != 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) ) {
-        //unless at global left/right where BC is imposed, if local domain is row vector, do:
         //compute 'top' corner, unless at top grid boundary already
         if(topRank != MPI_PROC_NULL) {
             out[Ny-1] = (- leftData[Ny-1] + 2.0*in[Ny-1] - rightData[Ny-1] ) * dx2i
@@ -262,8 +262,8 @@ void SolverCG::ApplyOperator(double* in, double* out) {
                     + (- bottomData[0] + 2*in[0] - in[1]) * dy2i;
         }
     }
+    //unless at global top/bottom where BC is imposed, if local domain is row vector, do:
     else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) ) {
-        //unless at global top/bottom where BC is imposed, if local domain is column vector, do:
         //compute 'left' corner, unless at LHS of grid already
         if(leftRank != MPI_PROC_NULL) {
             out[0] = ( - leftData[0] + 2.0 * in[0] - in[1] ) * dx2i

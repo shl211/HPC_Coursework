@@ -355,14 +355,14 @@ void LidDrivenCavity::Advance()
 }
 
 void LidDrivenCavity::ComputeVorticity() {
-    //precompute some common division terms
+
     double dyi  = 1.0/dy;
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;    
 
-    //send adjacent streamfunction data, needed to compute edges of each local domain
-    //while waiting to send, compute interior points to reduce latency
-    //row major storage, so top and bottom can be sent now
+    //------------------------------------Send/Receive Data and Compute Interior Points--------------------------------------//
+
+    //send streamfunction boundary data in all directions
     MPI_Isend(s+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&requests[0]);                 //tag = 0 -> streamfunction data sent up
     MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&requests[1]);                        //tag = 1 -> streamfunction data sent down
     
@@ -372,7 +372,8 @@ void LidDrivenCavity::ComputeVorticity() {
     MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);                      //tag = 2 -> streamfunction data sent left
     MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);                      //tag = 3 -> streamfunction data sent right
 
-    //compute interior vorticity points
+    //compute interior vorticity points while waiting for data to send
+    //dynamic scheduling observed in tests to be better for load balancing
     #pragma omp parallel for schedule(dynamic)
         for (int i = 1; i < Nx - 1; ++i) {
             for (int j = 1; j < Ny - 1; ++j) {
@@ -387,7 +388,116 @@ void LidDrivenCavity::ComputeVorticity() {
     MPI_Recv(sLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);                   //right column of process is data sent from process to right
     MPI_Recv(sRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);                 //left column of process is data sent from process to left
 
-    //------------------------------------------Assign Boundary Conditions (BC)----------------------------------------//                           
+   //------------------------------------------Compute Vorticity on Corners of each Local Domain----------------------------------------//
+
+    //if single cell domain not on global boundary, need acess to all four datasets
+    if((Nx == 1) & (Ny == 1) & !boundaryDomain) {   
+        v[0] = dx2i * (2.0 * s[0] - sRightData[0] - sLeftData[0])
+            + dy2i * (2.0 * s[0] - sTopData[0] - sBottomData[0]);
+    }
+    //unless at global left/right where BC is imposed, if local domain is column vector, do:
+    else if ((Nx == 1) & (Ny != 1)  & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+        //if it's top boundary process, don't repeat calculation of top 'corner'; same logic for bottom
+        if(topRank != MPI_PROC_NULL) { 
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - sRightData[0] - sLeftData[0])
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);              
+        }
+
+        if(bottomRank != MPI_PROC_NULL) {
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - sRightData[0] - sLeftData[0])
+                        + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);
+        }
+    }
+    //unless at global top/bottom where BC is imposed, if local domain is row vector, do:
+    else if ((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {    
+        //if it's left boundary process, don't repeat calculation of left 'corner'; same logic for right 
+        if(leftRank != MPI_PROC_NULL) { 
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])
+                        + dy2i * (2.0 * s[IDX(0,0)] - sTopData[0] - sBottomData[0]);
+        }
+
+        if(rightRank != MPI_PROC_NULL) { 
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])
+                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - sTopData[Nx-1] - sBottomData[Nx-1]);   
+        }
+    }
+    //compute corners for general case
+    else {
+        //don't repeat calculation for bottom left corner of process domain if process is at the left or bottom of grid (BC already imposed)
+        if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
+            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])
+                            + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);  
+        }
+        
+        //same logic for bottom right
+        if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])
+                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);
+        }
+        
+        //same logic for top left
+        if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
+            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Ny-1]) 
+                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);
+        }
+        
+        //same logic for top right
+        if(!((topRank == MPI_PROC_NULL )| (rightRank == MPI_PROC_NULL))) {
+            v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])
+                        + dy2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);
+        }
+    }
+
+    //------------------------------------------Compute Vorticity on Edges of each Local Domain----------------------------------------//
+
+    //unless at global left/right where BC is imposed, if local domain is column vector, compute data between top and bottom corners
+    if((Nx == 1) & (Ny > 1 ) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {    
+        for(int j = 1; j < Ny - 1; ++j) {
+            v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])
+                        + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+        }
+    }
+    //unless at global top/bottom where BC is imposed, if local domain is row vector, compute data between left and right corners
+    else if((Nx > 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+        for(int i = 1; i < Nx - 1; ++i) {
+            v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])
+                        + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
+        }
+    }
+    //compute edges for general case (exclude single cell domain -> 'corner' is sufficient)
+    else if((Nx != 1) & (Ny != 1)) {
+        //if process at bottom of grid, don't need to do anything as BC imposed
+        //same logic for other sides
+        if(bottomRank != MPI_PROC_NULL) {
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])
+                            + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
+            }
+        }
+
+        if(topRank != MPI_PROC_NULL) {
+            for(int i = 1; i < Nx - 1; ++i) {
+                v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)])
+                            + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
+            }
+        }
+
+        if(leftRank != MPI_PROC_NULL) {
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])
+                            + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
+            }
+        }
+
+        if(rightRank != MPI_PROC_NULL) {        
+            for(int j = 1; j < Ny - 1; ++j) {
+                v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-2,j)])
+                            + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
+            }
+        }
+    }
+
+    //------------------------------------------Assign Boundary Conditions (BC)-----------------------------------------//                           
     //no parallel region here as testing with Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T-0.1 always led to slower performance//
 
     //assign bottom BC
@@ -402,15 +512,16 @@ void LidDrivenCavity::ComputeVorticity() {
             //otherwise, for general case at bottom of grid, impose these bottom BCs 
             for(int i = 1; i < Nx-1; ++i)
                 v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
-                
+
+            
             //if not bottom left process, also compute bottom left corner
             if(leftRank != MPI_PROC_NULL) 
                 v[IDX(0,0)] = 2.0 * dy2i * (s[IDX(0,0)] - s[IDX(0,1)]);
-                
+                    
             //if not top bottom process, also compute bottom right corner
             if(rightRank != MPI_PROC_NULL)
                 v[IDX(Nx-1,0)] = 2.0 * dy2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)]);
-        }
+            }
     }
     
     //assign top BC, same logic as bottom BCs
@@ -472,119 +583,7 @@ void LidDrivenCavity::ComputeVorticity() {
         }
     }
 
-    //------------------------------------------Compute Vorticity on Edges of each Local Domain----------------------------------------//
-
-    if((Nx == 1) & (Ny > 1 )& !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {          
-    //if domain is column vector and not on left right boundary edge, then compute data between top and bottom corners
-        for(int j = 1; j < Ny - 1; ++j) {
-            v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])                     //column accesses left and right data
-                        + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
-        }
-    }
-
-    if ((Nx > 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
-    //if domain is row vector and not on top bottom boundary edge, then compute data between left and right corners
-        for(int i = 1; i < Nx - 1; ++i) {
-            v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])                   //row accesses bottom and top data
-                        + dy2i * (2.0 * s[IDX(i,0)] - sTopData[i] - sBottomData[i]);
-        }
-    }
-
-    //for general case where only one daset from other process is needed
-    if((bottomRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
-        //if process at bottom of grid, don't need to do anything as BC imposed
-        for(int i = 1; i < Nx - 1; ++i) {
-            v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])               //bottom row, requires access to bottom
-                        + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
-        }
-    }
-
-    if((topRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
-        //if process at top of grid, don't need to do anything as BC imposed
-        for(int i = 1; i < Nx - 1; ++i) {
-            v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)])    //top row, requires access to top
-                        + dy2i * (2.0 * s[IDX(i,Ny-1)] - sTopData[i] - s[IDX(i,Ny-2)]);
-        }
-    }
-
-    if((leftRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {
-        //if process at left of grid, don't need to do anything as BC imposed
-        for(int j = 1; j < Ny - 1; ++j) {
-            v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - s[IDX(1,j)] - sLeftData[j])                   //left column, requires access to teh left
-                        + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
-        }
-    }
-
-    if((rightRank != MPI_PROC_NULL) & (Nx != 1) & (Ny != 1)) {        
-        //if process at right of grid, don't need to do anything as BC imposed
-        for(int j = 1; j < Ny - 1; ++j) {
-            v[IDX(Nx-1,j)] = dx2i * (2.0 * s[IDX(Nx-1,j)] - sRightData[j] - s[IDX(Nx-2,j)])         //right column, requires access to teh righ
-                        + dy2i * (2.0 * s[IDX(Nx-1,j)] - s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j-1)]);
-        }
-    }
-
-    //------------------------------------------Compute Vorticity on Corners of each Local Domain----------------------------------------//
-    //don't parallelise as overheads will exceed serial computation of four points
-
-    if((Nx == 1) & (Ny == 1) & !boundaryDomain) {   
-        //if process domain not on boundary, and only one cell, need acess to all four datasets
-        v[0] = dx2i * (2.0 * s[0] - sRightData[0] - sLeftData[0])
-            + dy2i * (2.0 * s[0] - sTopData[0] - sBottomData[0]);
-    }
-    else if ((Nx == 1) & (Ny != 1)) {
-        //case where only one column, so needs access to data on both left and right, as well as top/bottom
-        if(topRank != MPI_PROC_NULL) { 
-            //if it's top boundary process, don't repeat calculation of top 'corner'
-            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - sRightData[0] - sLeftData[0])
-                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                     //top 'corner'                
-        }
-            
-        if(bottomRank != MPI_PROC_NULL) {
-            //if it's bottom bundary process, don't repeat calclation of bottom 'corner'
-            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - sRightData[0] - sLeftData[0])
-                        + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                        //bottom 'corner'
-        }
-    }
-    else if ((Nx != 1) & (Ny == 1)) {     
-        //case where only one row, so needs access to data on top and bottom, as well as left/right
-        if(leftRank != MPI_PROC_NULL) { 
-            //if it's left boundary process, don't repeat calculation of left 'corner'                
-            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                           //'left' corner
-                        + dy2i * (2.0 * s[IDX(0,0)] - sTopData[0] - sBottomData[0]);
-        }
-        if(rightRank != MPI_PROC_NULL) { 
-            //if it's right boundary process, don't repeat calculation of right 'corner'
-            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])                 //'right' corner
-                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - sTopData[Nx-1] - sBottomData[Nx-1]);   
-        }
-    }
-    else {
-        if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
-       //don't repeat calculation for bottom left corner of process domain if process is at the left or bottom of grid (BC already imposed)
-            v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])                           //bottom left, corresponds to first entry of left data
-                            + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);                    //and first entry of bottom data                
-        }
-        
-        if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-        //don't repeat calculation for bottom right corner of process domain if process is at the right or bottom of grid (BC already imposed)
-            v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])                 //bottom right, corresponds to first entry of right
-                        + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);               //and last entry of bottom data 
-        }
-        
-        if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
-        //don't repeat calculation for top left corner of process domain if process is at the top or left of grid (BC already imposed)
-            v[IDX(0,Ny-1)] = dx2i * (2.0 * s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)] - sLeftData[Ny-1])               //top left, corresponds to last entry of left data
-                        + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);                     //and first entry of top data
-        }
-        
-        if(!((topRank == MPI_PROC_NULL )| (rightRank == MPI_PROC_NULL))) {
-        //don't repeat calculation for top right corner of process domain if process is at the top or right of grid (BC already imposed)
-            v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])     //top right, corresponds to last entry of right data
-                        + dy2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);            //and last entry of top data
-        }
-    }
-
-    //wait for communication to complete, before proceeding with next communication
+    //ensure all communications completed
     MPI_Waitall(4,requests,MPI_STATUSES_IGNORE);   
 }
 
