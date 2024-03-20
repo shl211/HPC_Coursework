@@ -72,8 +72,12 @@ int main(int argc, char* argv[])
     }
 
     //don't let user put less grid points in a dimension than processes, prevent processes having no data
-    if(vm["Nx"].as<int>() < p | vm["Ny"].as<int>() < p) {              
+    if((vm["Nx"].as<int>() < p) | (vm["Ny"].as<int>() < p)) {              
+        if(worldRank == 0)
+            cout << "Nx and/or Ny < p, where there are p^2 ranks. Reduce processors, or increase the number of grid points" << endl;
 
+        MPI_Finalize();
+        return 1;
     }
 
     //------------------------------------------Implement Parallel Solver---------------------------------------------------//
