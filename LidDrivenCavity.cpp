@@ -51,6 +51,11 @@ LidDrivenCavity::LidDrivenCavity()
 LidDrivenCavity::~LidDrivenCavity()
 {
     CleanUp();                                                      //deallocate memory
+
+    //clean up MPI communicators
+    MPI_Comm_free(&comm_Cart_grid);
+    MPI_Comm_free(&comm_row_grid);
+    MPI_Comm_free(&comm_col_grid);
 }
 
 double LidDrivenCavity::GetDt(){
@@ -304,6 +309,8 @@ void LidDrivenCavity::PrintConfiguration()
             cout << "ERROR: Time-step restriction not satisfied!" << endl;
             cout << "Maximum time-step is " << 0.25 * dx * dy / nu << endl;
         }
+
+        MPI_Finalize();
         exit(-1);
     }
 }

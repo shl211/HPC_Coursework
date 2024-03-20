@@ -77,6 +77,8 @@ SolverCG::~SolverCG()
 
     delete[] tempLeft;
     delete[] tempRight;
+
+    //since MPI Comms passed by reference in constructor, it is assumed user will appropriately deallocate it
 }
 
 double SolverCG::GetDx() {
@@ -191,6 +193,8 @@ void SolverCG::Solve(double* b, double* x) {
     if (k == 5000) {
         if((rowRank == 0) & (colRank == 0))
             cout << "FAILED TO CONVERGE" << endl;
+
+        MPI_Finalize();
         exit(-1);
     }
 
