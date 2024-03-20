@@ -816,10 +816,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
 {
     //take a case where steady state is reached -> rule of thumb, fluid should pass through at least 10 times to reach SS
     //For reference dx dy = 0.005 and nu*dt/dx/dy = 0.2 < 0.25
-    double dt   = 0.005;
-    double T    = 20;
-    int    Nx   = 201;
-    int    Ny   = 201;
+    double dt   = 0.01;
+    double T    = 10;
+    int    Nx   = 101;
+    int    Ny   = 101;
     double Lx   = 1;
     double Ly   = 1;
     double Re   = 1000;
@@ -853,10 +853,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
     //initialise and write the output
     test.Initialise();
     test.Integrate();
-    //exit(-1);
+
     //output file containing initial condition, in file name IntegratorTest; reference data in DataIntegratorTestCase
     std::string fileName = "IntegratorTest";
-    std::string refData = "DataIntegratorTestCase";
+    std::string refData = "DataIntegratorTestCase2";
     test.WriteSolution(fileName);
     
     std::ifstream outputFile(fileName);             // Create streams for outputted data and reference data
