@@ -499,6 +499,15 @@ void LidDrivenCavity::UpdateDxDy()
 
 void LidDrivenCavity::Advance()
 {
+    ComputeVorticity();
+
+    ComputeTimeAdvanceVorticity();
+
+    // Solve Poisson problem
+    cg->Solve(vNext, s);
+}
+
+void LidDrivenCavity::ComputeVorticity() {
     double dxi  = 1.0/dx;           //precompute some common division terms
     double dyi  = 1.0/dy;
     double dx2i = 1.0/dx/dx;
@@ -745,6 +754,14 @@ void LidDrivenCavity::Advance()
 
     //wait for communication to complete, before proceeding with next communication; allows requests to be reused
     MPI_Waitall(4,requests,MPI_STATUSES_IGNORE);   
+}
+
+void LidDrivenCavity::ComputeTimeAdvanceVorticity() {
+    //assume s data already sent and received by ComputeVorticity
+    double dxi  = 1.0/dx;           //precompute some common division terms
+    double dyi  = 1.0/dy;
+    double dx2i = 1.0/dx/dx;
+    double dy2i = 1.0/dy/dy;    
 
     //------------------------------------------------------------------------------------------------------------------------------------------//
     //----------------------------------------------------TIME ADVANCE VORTICITY----------------------------------------------------------------//
@@ -993,8 +1010,6 @@ void LidDrivenCavity::Advance()
     //wait for communication to complete, before proceeding with next communication; allows requests to be reused
     MPI_Waitall(4,requests,MPI_STATUSES_IGNORE);   
 
-    // Solve Poisson problem
-    cg->Solve(vNext, s);
 }
 
 //MPI stuff

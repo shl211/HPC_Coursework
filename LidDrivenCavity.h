@@ -210,6 +210,11 @@ private:
      ******************************************************************************************************************************************/
     void Advance();
 
+    void ComputeVorticity();
+
+    void ComputeTimeAdvanceVorticity();
+
+
     /**
    * @brief Setup Cartesian grid and column and row communicators
    * @param[out] cartGrid   Communicator for Cartesian grid
