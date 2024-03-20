@@ -1,8 +1,4 @@
-<<<<<<< HEAD
-CXX = mpicxx
-=======
 CXX = mpicxx -fopenmp
->>>>>>> OpenMPSolver
 CXXFLAGS = -std=c++11 -Wall -o0 -g #-ftree-vectorize
 TARGET = solver
 OBJS = LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
