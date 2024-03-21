@@ -370,7 +370,7 @@ void SolverCG::Precondition(double* in, double* out) {
 
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;
-    double factor = 1/(2.0*(dx2i + dy2i));                      //precondition will involve dividing all non-boundary terms by 2(1/dx/dx + 1/dy/dy)
+    double factor = 1/(2.0*(dx2i + dy2i));                      //precondition factor
     
     //here edge calculations also parallelised as parallel region already created for the nested O(n^2) loop
     //hence no overhead costs, so marginal gains can be made

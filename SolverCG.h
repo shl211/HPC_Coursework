@@ -3,13 +3,14 @@
 /**
  * @class SolverCG
  * @brief Describes a preconditioned conjugate gradient solver that solves the equation \f$ -\nabla ^ 2 x = b \f$ 
- * Describes a preconditioned conjugate gradient solver which solves the matrix equation Ax=b, with max iteration number of 5000,
-and error tolerance of 1e-3. In this context, A describes the coefficients of a second-order central-difference discretisation of the
-operator \f$ -\nabla^2 \f$, x describes the streamfunction and b describes the vorticity. 
-The problem domain is \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ is the domain length in x direction and \f$ L_y \f$ is the 
-domain length in the y direction.
- * @note When implemented with MPI, SolverCG expects inputs to already be discretised into local domains. All member variables describe
- the local problem domain, unless otherwise specified
+ * 
+ * Describes a preconditioned conjugate gradient solver which solves the matrix equation \f$ Ax=b \f$, with max iteration number of 5000,
+and error tolerance of 1e-3. In this context, \f$ A \f$ describes the coefficients of a second-order central-difference discretisation of the
+operator \f$ -\nabla^2 \f$, \f$ x \f$ describes the streamfunction and \f$ b \f$ describes the vorticity (i.e. \f$ -\nabla ^ 2 \psi = \omega \f$).
+The problem domain is \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ is the domain length in \f$ x \f$ direction and \f$ L_y \f$ is the 
+domain length in the \f$ y  \f$ direction.
+ * @note When implemented with MPI, SolverCG expects inputs to already be discretised into local domains by LidDrivenCavity. 
+ All member variables describe the local problem domain, unless otherwise specified
  ******************************************************************************************************************************************/
 class SolverCG
 {
@@ -37,10 +38,10 @@ public:
      * @note Returned values describe the local domain of a process, which are not necessarily the same as the global domain (unless MPI ranks = 1)
      * @{
      ****************************************************************************************************************************************/
-    double GetDx();             ///< Get the x step size parameter dx, for testing purporses
-    double GetDy();             ///< Get the y step size parameter dy, for testing purporses
-    int GetNx();                ///< Get the number of grid points in x direction, for testing purporses
-    int GetNy();                ///< Get the number of grid points in y direction, for testing purporses
+    double GetDx();             ///< Get the x step size parameter dx, for testing purposes
+    double GetDy();             ///< Get the y step size parameter dy, for testing purposes
+    int GetNx();                ///< Get the number of grid points in x direction, for testing purposes
+    int GetNy();                ///< Get the number of grid points in y direction, for testing purposes
     /**@}*/
 
     /**
@@ -48,7 +49,7 @@ public:
      * This equation is formulated as \f$ Ax=b \f$. Note that A describes the coefficients of a 
      * second-order central-difference discretisation of the operator \f$ -\nabla^2 \f$
      * @param[in] b     The desired result; in this context, the vorticity
-     * @param x     On input, initial guess \f$ x_0 \f$; on output the computed solution (in this context, the streamfunction)
+     * @param[in,out] x     On input, initial guess \f$ x_0 \f$; on output the computed solution (in this context, the streamfunction)
      */
     void Solve(double* b, double* x);
 
@@ -75,7 +76,8 @@ private:
     int leftRank;       ///<rank of process to left of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to left
     int rightRank;      ///<rank of process to right of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to right
 
-    int i,j;            ///<loop counters
+    int i;            ///<loop counters
+    int j;            ///<loop counters
 
     /// MPI_Request handle to check data send -> [0] = send to top, [1] = send to bottom, [2] = send left, [3] = send right
     MPI_Request requests[4];                    
@@ -98,15 +100,20 @@ private:
     void ApplyOperator(double* p, double* t);
     
     /**
-     * @brief Preconditions the problem formulation Ax=b to prevent ill-condition and improve convergence rate
-     * @param[in] p     Input original un-preconditioned Ax
-     * @param[out] t     Output preconditioned Ax
+     * @brief Preconditions the matrix \f$ p \f$
+     * 
+     * Precondition all elements in matrix \f$ p \f$ that do not correspond to the global domain boundary.
+     * Uses precondition factor \f$ \frac {1}{2*(dx^2 + dy^2)} \f$ for interior points and leaves global domain boundaries untouched.
+     * Prevent ill-condition and improve convergence rate.
+     * 
+     * @param[in] p     Input matrix to be preconditioned
+     * @param[out] t     Output preconditioned \f$ p \f$ matrix 
      *****************************************************************************************************************************************/
     void Precondition(double* p, double* t);
     
     /**
      * @brief Impose zero boundary conditions around the edge of the matrix \f$ AX \f$
-     * @param p     On input, the matrix \f$ AX \f$ ; on output, the matrix \f$ AX \f$ with imposed boundary conditions
+     * @param[in,out] p     On input, the matrix \f$ AX \f$ ; on output, the matrix \f$ AX \f$ with imposed boundary conditions
      *****************************************************************************************************************************************/
     void ImposeBC(double* p);
 

@@ -9,14 +9,16 @@ class SolverCG;
  * @class LidDrivenCavity
  * @brief Class that describes the properties of the lid driven cavity problem.
  * 
- * The fluid flow in this problem can be characterised in both time and space (x,y). This class contains methods that allow for the 
+ * The fluid flow in this problem can be characterised in both time and space \f$ (x,y) \f$. This class contains methods that allow for the 
  * 2D incompressible Navier-Stokes equations to be evaluated on the problem domain \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ 
- * is the domain length in x direction and \f$ L_y \f$ is the domain length in the y direction. The problem time domain is \f$ t\in[0,T_f] \f$ 
+ * is the domain length in \f$ x \f$ direction and \f$ L_y \f$ is the domain length in the \f$ y \f$ direction. The problem time domain is \f$ t\in[0,T_f] \f$ 
  * where \f$ T_f \f$ is the final time. Results can be outputted to a text file.
- *  * @note When implemented with MPI, LidDrivenCavity expects inputs to be describe the undiscretised global domain as 
- * discretisation is done by the solver. This is to prevent the user from being confused over whether the Set functions
+ *  @note When implemented with MPI, LidDrivenCavity expects inputs to be describe the undiscretised global domain as 
+ * discretisation is done within this solver. This is to prevent the user from being confused over whether the Set functions
  * should take local or global values. However, all private member variables store local values not global values, unless
  * otherwise stated.
+ * 
+ * @note Row major storage format is used for matrices
  ***********************************************************************************************************************************************/
 class LidDrivenCavity
 {
@@ -72,8 +74,8 @@ public:
     /**
      * @brief Get local vorticity and streamfunction
      * @note It is assumed that the user will provide the correct array sizes 
-     * @param[out] vOut    Vorticity
-     * @param[out] sOut    Streamfunction
+     * @param[out] vOut    Vorticity at all grid points
+     * @param[out] sOut    Streamfunction at all grid points
      ************************************************************************************************************************************************/
     void GetData(double* vOut, double* sOut);
 
@@ -127,7 +129,7 @@ public:
     void Integrate();
     
     /**
-     * @brief Print grid position (x,y), voriticity, streamfunction and velocities (vx,vy) to a text file with the specified name. 
+     * @brief Print grid position \f$ (x,y) \f$, voriticity, streamfunction and velocities to a text file with the specified name. 
      * 
      * If the specified file does not exist, then it will create a text file with the specified name and output data there.
      * @param[in] file      name of the target text file
@@ -170,7 +172,7 @@ private:
     int yDomainStart;                       ///<For the y direction, denotes where the local domain starts in the context of the global domain 
 
     int rowRank;                            ///<rank of current process in #comm_row_grid
-    int colRank;                            ///<rank of current process in comm_col_grid
+    int colRank;                            ///<rank of current process in #comm_col_grid
     int topRank;                            ///<rank of process above current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing above
     int bottomRank;                         ///<rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
     int leftRank;                           ///<rank of process to left of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to left
@@ -221,7 +223,7 @@ private:
     void ComputeTimeAdvanceVorticity();
 
     /**
-     * @brief Compute the velocity from the streafunction
+     * @brief Compute the velocity at all grid points from the streamfunction
      * @param[out] u0   Horizontal velocity
      * @param[out] u1   Vertical velocity
      ******************************************************************************************************************************************/

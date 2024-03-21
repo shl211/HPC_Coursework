@@ -159,7 +159,7 @@ void SplitDomainMPIVerify(MPI_Comm &grid, int globalNx, int globalNy, double glo
 }
 
 /**
- * @brief Test SolverCG constructor is assigning values correctly
+ * @test Test SolverCG constructor is assigning values correctly
  ******************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
 {
@@ -198,7 +198,7 @@ BOOST_AUTO_TEST_CASE(SolverCG_Constructor)
 }
 
 /**
- * @brief Test SolverCG::Solve where if input b is very close to zero, then output x should be exactly 0.0 for all entries
+ * @test Test SolverCG::Solve where if input b is very close to zero, then output x should be exactly 0.0 for all entries
  ************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(SolverCG_Solve_NearZeroInput)
 {
@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(SolverCG_Solve_NearZeroInput)
 }
 
 /** 
- * @brief Sinusoidal test case for SolverCG which solves Ax=b. 
+ * @test Sinusoidal test case for SolverCG which solves Ax=b. 
  * Since A is the coefficients of the operator \f$ -\nabla^2 \f$, then the sinusoidal test case is
  * \f$ - \pi ^2 (k^2 + l^2) \sin(k \pi x) \sin (l \pi y) \f$, on a domain \f$ (x,y) \in [0, \frac{2}{k}] \times [0, \frac{2}{l}] \f$. 
  * Domain choice ensures zero boundary conditions on domain edge is imposed. The solution should satsify
@@ -310,7 +310,7 @@ BOOST_AUTO_TEST_CASE(SolverCG_Solve_SinusoidalInput)
 }
 
 /**
- * @brief Tests whether LidDrivenCavity constructor is generated correctly in MPI implementation. Should split the default domain in unlikely case that it is used
+ * @test Tests whether LidDrivenCavity constructor is generated correctly in MPI implementation. Should split the default domain in unlikely case that it is used
 **************************************************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
     //default values in class, global values of problem
@@ -365,7 +365,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Constructor) {
 }
 
 /**
- * @brief Test whether LidDrivenCavity::SetDomainSize assigns values correctly and correctly configures problem
+ * @test Test whether LidDrivenCavity::SetDomainSize assigns values correctly and correctly configures problem
  *************************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
     
@@ -411,7 +411,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetDomainSize) {
 }
 
 /**
- * @brief Test whether LidDrivenCavity::SetGridSize assigns values correctly and correctly configures problem
+ * @test Test whether LidDrivenCavity::SetGridSize assigns values correctly and correctly configures problem
  ***********************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
     
@@ -457,7 +457,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
 }
 
 /**
- * @brief Test whether LidDrivenCavity::SetTimeStep assigns values correctly and correctly configures problem
+ * @test Test whether LidDrivenCavity::SetTimeStep assigns values correctly and correctly configures problem
  **********************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
 
@@ -474,7 +474,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetTimeStep) {
 }
 
 /**
- * @brief Test whether LidDrivenCavity::SetFinalTime assigns values correctly and correctly configures problem
+ * @test Test whether LidDrivenCavity::SetFinalTime assigns values correctly and correctly configures problem
  ************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
 
@@ -491,7 +491,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetFinalTime) {
 }
 
 /**
- * @brief Test whether LidDrivenCavity::SetReynoldsNumber assigns values correctly and correctly configures problem
+ * @test Test whether LidDrivenCavity::SetReynoldsNumber assigns values correctly and correctly configures problem
  ******************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
     //variable to set, no need split domain as Reynolds number Re should be same across all processes
@@ -513,7 +513,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
 }
 
 /**
- * @brief Test case to confirm whether LidDrivenCavity::PrintConfiguration function prints out the correct global configuration
+ * @test Test case to confirm whether LidDrivenCavity::PrintConfiguration function prints out the correct global configuration
 ******************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 {
@@ -593,7 +593,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 }
 
 /**
- * @brief Test whether LidDrivenCavity::Initialise initialises the vorticity, streamfunctions correctly
+ * @test Test whether LidDrivenCavity::Initialise initialises the vorticity, streamfunctions correctly
 ******************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
     /*Define a test case with different numbers for each variable. These describe the GLOBAL domain, not local
@@ -659,7 +659,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
 }
 
 /**
- * @brief Test whether LidDrivenCavity::WriteSolution() creates file and outputs correct data in correct format.
+ * @test Test whether LidDrivenCavity::WriteSolution() creates file and outputs correct data in correct format.
  * Uses initial condition data to check. Upon problem initialisation, streamfunction and voriticity should be zero everywhere. 
  * Vertical and horizontal velocities should be zero everywhere, except at top of lid where horizontal velocity is 1.
  *******************************************************************************************************************************/
@@ -809,7 +809,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
 }
 
 /**
- * @brief Tests whether the time domain solver LidDrivenCavity::Integrator works correctly by comparing problem to a reference dataset
+ * @test Tests whether the time domain solver LidDrivenCavity::Integrator works correctly by comparing problem to a reference dataset
  * @note Reference dataset generated via serial version of this solver
  *******************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator) 
