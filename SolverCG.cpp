@@ -276,11 +276,11 @@ void SolverCG::ApplyOperator(double* in, double* out) {
         
         //compute 'right' corner, unless at RHS of grid already
         if(rightRank != MPI_PROC_NULL) {
-            out[Nx-1] = (- in[Nx-2] + 2.0 * in[0] - rightData[1] ) * dx2i
+            out[Nx-1] = (- in[Nx-2] + 2.0 * in[0] - rightData[0] ) * dx2i
                     +(- bottomData[Nx-1] + 2 * in[0] - topData[Nx-1] ) * dy2i;
         }
     } 
-    else {
+    else if(Nx != 1 & Ny != 1){
         //otherwise, for general case where only two datapoints from other processes are needded:
         //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
         if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
@@ -514,4 +514,6 @@ void SolverCG::ImposeBC(double* inout) {
                 }
         }
     }
+    if(Nx == 1 & Ny == 1 & boundaryDomain)
+        inout[0] = 0;
 }
