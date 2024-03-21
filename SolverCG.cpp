@@ -370,7 +370,7 @@ void SolverCG::Precondition(double* in, double* out) {
 
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;
-    double factor = 2.0*(dx2i + dy2i);                      //precondition will involve dividing all non-boundary terms by 2(1/dx/dx + 1/dy/dy)
+    double factor = 1/(2.0*(dx2i + dy2i));                      //precondition will involve dividing all non-boundary terms by 2(1/dx/dx + 1/dy/dy)
     
     //here edge calculations also parallelised as parallel region already created for the nested O(n^2) loop
     //hence no overhead costs, so marginal gains can be made
@@ -381,7 +381,7 @@ void SolverCG::Precondition(double* in, double* out) {
         #pragma omp for schedule(dynamic) nowait
             for (j = 1; j < Ny - 1; ++j) {                  
                 for (i = 1; i < Nx - 1; ++i) {
-                    out[IDX(i,j)] = in[IDX(i,j)]/factor;
+                    out[IDX(i,j)] = in[IDX(i,j)]*factor;
                 }
             }
     
@@ -395,7 +395,7 @@ void SolverCG::Precondition(double* in, double* out) {
             //*** = left
             if( leftRank != MPI_PROC_NULL) {
                 for(j = 1; j < Ny-1; ++j) {
-                    out[IDX(0,j)] = in[IDX(0,j)]/factor;
+                    out[IDX(0,j)] = in[IDX(0,j)]*factor;
                 }
             }
             
@@ -410,7 +410,7 @@ void SolverCG::Precondition(double* in, double* out) {
             #pragma omp section
             if(rightRank != MPI_PROC_NULL) {
                 for(j = 1; j < Ny - 1; ++j) {
-                    out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)]/factor;
+                    out[IDX(Nx-1,j)] = in[IDX(Nx-1,j)]*factor;
                 }
             }
             
@@ -425,7 +425,7 @@ void SolverCG::Precondition(double* in, double* out) {
             #pragma omp section
             if(bottomRank != MPI_PROC_NULL) {   
                 for(i = 1; i < Nx - 1; ++i) {
-                    out[IDX(i,0)] = in[IDX(i,0)]/factor;
+                    out[IDX(i,0)] = in[IDX(i,0)]*factor;
                 }
             }
 
@@ -440,7 +440,7 @@ void SolverCG::Precondition(double* in, double* out) {
             #pragma omp section
             if(topRank != MPI_PROC_NULL) {   
                 for(i = 1; i < Nx - 1; ++i) {
-                    out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)]/factor;
+                    out[IDX(i,Ny-1)] = in[IDX(i,Ny-1)]*factor;
                 }
             }
 
@@ -460,22 +460,22 @@ void SolverCG::Precondition(double* in, double* out) {
     if( (leftRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))
         out[0] = in[0];
     else
-        out[0] = in[0]/factor;
+        out[0] = in[0]*factor;
     
     if( (leftRank == MPI_PROC_NULL) | (topRank == MPI_PROC_NULL))
         out[IDX(0,Ny-1)] = in[IDX(0,Ny-1)];
     else
-        out[IDX(0,Ny-1)] = in[IDX(0,Ny-1)]/factor;
+        out[IDX(0,Ny-1)] = in[IDX(0,Ny-1)]*factor;
     
     if( (rightRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))
         out[IDX(Nx-1,0)] = in[IDX(Nx-1,0)];
     else
-        out[IDX(Nx-1,0)] = in[IDX(Nx-1,0)]/factor;         
+        out[IDX(Nx-1,0)] = in[IDX(Nx-1,0)]*factor;         
     
     if((rightRank == MPI_PROC_NULL) | (topRank == MPI_PROC_NULL))
         out[IDX(Nx-1,Ny-1)] = in[IDX(Nx-1,Ny-1)];
     else
-        out[IDX(Nx-1,Ny-1)] = in[IDX(Nx-1,Ny-1)]/factor;
+        out[IDX(Nx-1,Ny-1)] = in[IDX(Nx-1,Ny-1)]*factor;
 }
 
 void SolverCG::ImposeBC(double* inout) {
