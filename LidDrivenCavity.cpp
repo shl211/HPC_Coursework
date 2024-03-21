@@ -25,12 +25,12 @@ LidDrivenCavity::LidDrivenCavity()
     CreateCartGrid(comm_Cart_grid,comm_row_grid,comm_col_grid);
     
     //compute ranks along the row communciator and the column communicator
-    MPI_Comm_rank(comm_row_grid, &&rowRank);                             
-    MPI_Comm_rank(comm_col_grid, &&colRank);
+    MPI_Comm_rank(comm_row_grid, &rowRank);                             
+    MPI_Comm_rank(comm_col_grid, &colRank);
 
     //compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
-    MPI_Cart_shift(comm_col_grid,0,1,&&bottomRank,&&topRank);
-    MPI_Cart_shift(comm_row_grid,0,1,&&leftRank,&&rightRank);
+    MPI_Cart_shift(comm_col_grid,0,1,&bottomRank,&topRank);
+    MPI_Cart_shift(comm_row_grid,0,1,&leftRank,&rightRank);
     
     if((topRank != MPI_PROC_NULL) && (bottomRank != MPI_PROC_NULL) && (leftRank != MPI_PROC_NULL) && (rightRank != MPI_PROC_NULL))
         boundaryDomain = false;
@@ -53,9 +53,9 @@ LidDrivenCavity::~LidDrivenCavity()
     CleanUp();                                                      //deallocate memory
 
     //clean up MPI communicators
-    MPI_Comm_free(&&comm_Cart_grid);
-    MPI_Comm_free(&&comm_row_grid);
-    MPI_Comm_free(&&comm_col_grid);
+    MPI_Comm_free(&comm_Cart_grid);
+    MPI_Comm_free(&comm_row_grid);
+    MPI_Comm_free(&comm_col_grid);
 }
 
 double LidDrivenCavity::GetDt(){
@@ -236,8 +236,8 @@ void LidDrivenCavity::WriteSolution(std::string file)
     int* relativeDisp = new int[size];          //where data should be stored relative to send buffer pointer
     int rel = yDomainStart*Nx;                  //where current process data would go in the column communicator gathered matrix
 
-    MPI_Gather(&&Npts,1,MPI_INT,colRecDataNum+colRank,1,MPI_INT,0,comm_col_grid);        //root needs this info for Gatherv
-    MPI_Gather(&&rel,1,MPI_INT,relativeDisp+colRank,1,MPI_INT,0,comm_col_grid);
+    MPI_Gather(&Npts,1,MPI_INT,colRecDataNum+colRank,1,MPI_INT,0,comm_col_grid);        //root needs this info for Gatherv
+    MPI_Gather(&rel,1,MPI_INT,relativeDisp+colRank,1,MPI_INT,0,comm_col_grid);
 
     //send local data for s and v of each process to correct place in root column; AllCol now data for the entire column communicator
     MPI_Gatherv(s,Npts,MPI_DOUBLE,sAllCol,colRecDataNum,relativeDisp,MPI_DOUBLE,0,comm_col_grid);       
@@ -258,7 +258,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         }
         else{
             //blocking receive to force process to wait until LHS root column process finished writing before writing -> ensure column-by-column format
-            MPI_Recv(&&goAheadMessage,1,MPI_INT,leftRank,10,comm_row_grid,MPI_STATUS_IGNORE);
+            MPI_Recv(&goAheadMessage,1,MPI_INT,leftRank,10,comm_row_grid,MPI_STATUS_IGNORE);
             f.open(file.c_str(),std::ios::app);                         //other processes should append data to file, not overwrite
         }
         
@@ -277,7 +277,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         f.close();
 
         //writing done for this process, tell next process to go by sending a message to unblock the next root column process
-        MPI_Send(&&goAheadMessage,1,MPI_INT,rightRank,10,comm_row_grid);
+        MPI_Send(&goAheadMessage,1,MPI_INT,rightRank,10,comm_row_grid);
     }
 
     delete[] u0;
@@ -372,14 +372,14 @@ void LidDrivenCavity::ComputeVorticity() {
     //---------------------------------------------------------------------------------------------------------------------------//
 
     //send streamfunction boundary data in all directions
-    MPI_Isend(s+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&&requests[0]);                 //tag = 0 -> streamfunction data sent up
-    MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&&requests[1]);                        //tag = 1 -> streamfunction data sent down
+    MPI_Isend(s+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&requests[0]);                 //tag = 0 -> streamfunction data sent up
+    MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&requests[1]);                        //tag = 1 -> streamfunction data sent down
     
     //extract and send left and right
     cblas_dcopy(Ny,s,Nx,tempLeft,1);
     cblas_dcopy(Ny,s+Nx-1,Nx,tempRight,1);
-    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&&requests[2]);                      //tag = 2 -> streamfunction data sent left
-    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&&requests[3]);                      //tag = 3 -> streamfunction data sent right
+    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);                      //tag = 2 -> streamfunction data sent left
+    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);                      //tag = 3 -> streamfunction data sent right
 
     //compute interior vorticity points while waiting for data to send
     //dynamic scheduling observed in tests to be better for load balancing
@@ -640,14 +640,14 @@ void LidDrivenCavity::ComputeTimeAdvanceVorticity() {
     //------------------------------------------------------------------------------------------------------------------------------------//
 
     //send vorticity data on edge of each domain to adjacent grid
-    MPI_Isend(v+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&&requests[0]);     //tag = 0 -> streamfunction data sent up
-    MPI_Isend(v, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&&requests[1]);            //tag = 1 -> streamfunction data sent down
+    MPI_Isend(v+Nx*(Ny-1), Nx, MPI_DOUBLE, topRank, 0, comm_col_grid,&requests[0]);     //tag = 0 -> streamfunction data sent up
+    MPI_Isend(v, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&requests[1]);            //tag = 1 -> streamfunction data sent down
     
     cblas_dcopy(Ny,v,Nx,tempLeft,1);                                                    //extract left and right data to be sent
     cblas_dcopy(Ny,v+Nx-1,Nx,tempRight,1);
 
-    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&&requests[2]);           //tag = 2 -> streamfunction data sent left
-    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&&requests[3]);          //tag = 3 -> streamfunction data sent right
+    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);           //tag = 2 -> streamfunction data sent left
+    MPI_Isend(tempRight,Ny,MPI_DOUBLE,rightRank,3,comm_row_grid,&requests[3]);          //tag = 3 -> streamfunction data sent right
     
     //compute interior points of v_n+1 to allow all data to be sent; requires only data stored in current process
     #pragma omp parallel for schedule(dynamic)
@@ -894,9 +894,9 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     //------------------------------------------------------------------------------------------------------------------------------------//    
     //to compute velocities, processes only need to know data to right and above, hence only need to send down and to left
 
-    MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&&requests[1]);            //tag = 1 -> streamfunction data sent down
+    MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&requests[1]);            //tag = 1 -> streamfunction data sent down
     cblas_dcopy(Ny,s,Nx,tempLeft,1);                                                    //now extract left data
-    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&&requests[2]);          //tag = 2 -> streamfunction data sent left
+    MPI_Isend(tempLeft,Ny,MPI_DOUBLE,leftRank, 2, comm_row_grid,&requests[2]);          //tag = 2 -> streamfunction data sent left
 
     //compute interior points while waiting to send
     #pragma omp parallel for schedule(dynamic) 
@@ -1039,13 +1039,13 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     MPI_Waitall(2,requests+1,MPI_STATUSES_IGNORE);
 }
 
-void LidDrivenCavity::CreateCartGrid(MPI_Comm &&cartGrid,MPI_Comm &&rowGrid, MPI_Comm &&colGrid){
+void LidDrivenCavity::CreateCartGrid(MPI_Comm &cartGrid,MPI_Comm &rowGrid, MPI_Comm &colGrid){
     
     int worldRank, size;    
     
     //return rank and size
-    MPI_Comm_rank(MPI_COMM_WORLD, &&worldRank); 
-    MPI_Comm_size(MPI_COMM_WORLD, &&size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &worldRank); 
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
     this-> size = size;                                                 //assign to member variable
     
     //check if input rank is square number size = p^2
@@ -1069,28 +1069,28 @@ void LidDrivenCavity::CreateCartGrid(MPI_Comm &&cartGrid,MPI_Comm &&rowGrid, MPI
     int reorder = 1;                                                                        //reordering of grid allowed
     int keep[dims];                                                                         //denotes which dimension to keep when finding subgrids
 
-    MPI_Cart_create(MPI_COMM_WORLD,dims,gridSize,periods,reorder, &&cartGrid);         //create Cartesian topology grid
+    MPI_Cart_create(MPI_COMM_WORLD,dims,gridSize,periods,reorder, &cartGrid);         //create Cartesian topology grid
     
     //create row communnicator in subgrid so process can communicate with other processes on row   
     keep[0] = 0;        
     keep[1] = 1;                                                        //keep all processes with same j coordinate i.e. same row
-    MPI_Cart_sub(cartGrid, keep, &&rowGrid);
+    MPI_Cart_sub(cartGrid, keep, &rowGrid);
     
     //create column communnicator in subgrid so process can communicate with other processes on column
     keep[0] = 1;        
     keep[1] = 0;                                                        //keep all processes with same i coordinate i.e. same column
-    MPI_Cart_sub(cartGrid, keep, &&colGrid);
+    MPI_Cart_sub(cartGrid, keep, &colGrid);
 }
 
-void LidDrivenCavity::SplitDomainMPI(MPI_Comm &&grid, int globalNx, int globalNy, double globalLx, double globalLy, 
-                                    int &&localNx, int &&localNy, double &&localLx, double &&localLy, int &&xStart, int &&yStart) {
+void LidDrivenCavity::SplitDomainMPI(MPI_Comm &grid, int globalNx, int globalNy, double globalLx, double globalLy, 
+                                    int &localNx, int &localNy, double &localLx, double &localLy, int &xStart, int &yStart) {
     
     int rem,size,gridRank;
     int dims = 2;
     int coords[2];
 
-    MPI_Comm_size(MPI_COMM_WORLD, &&size);                       //return total number of MPI ranks, size denotes total number of processes P
-    MPI_Comm_rank(grid, &&gridRank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);                       //return total number of MPI ranks, size denotes total number of processes P
+    MPI_Comm_rank(grid, &gridRank);
     MPI_Cart_coords(grid, gridRank, dims, coords);              //use process rank in Cartesian grid to generate coordinates
     
     //assume that P = p^2 is already verified and find p, the number of processes along each domain dimension
