@@ -915,7 +915,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
         vx[IDX(i,j)] = std::stod(vxData);
         vy[IDX(i,j)] = std::stod(vyData);
         
-        dataPoints++;                           //log extra data pionts
+        dataPoints++;                           //log extra data point
 
         //also increment i and j counters; note that data is written out column by column, so i constant, j increments
         j++;
