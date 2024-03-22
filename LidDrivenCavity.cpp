@@ -893,6 +893,9 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     //--------------------------------------Step 1: Transfer Data and Compute Interior Points---------------------------------------------//
     //------------------------------------------------------------------------------------------------------------------------------------//    
     //to compute velocities, processes only need to know data to right and above, hence only need to send down and to left
+    double dxi = 1/dx;
+    double dyi = 1/dy;
+
 
     MPI_Isend(s, Nx, MPI_DOUBLE, bottomRank, 1, comm_col_grid,&requests[1]);            //tag = 1 -> streamfunction data sent down
     cblas_dcopy(Ny,s,Nx,tempLeft,1);                                                    //now extract left data
@@ -902,8 +905,8 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     #pragma omp parallel for schedule(dynamic) 
         for (int i = 1; i < Nx - 1; ++i) {
             for (int j = 1; j < Ny - 1; ++j) {
-                u0[IDX(i,j)] =  (s[IDX(i,j+1)] - s[IDX(i,j)]) / dy;     //compute velocity in x direction at every grid point from streamfunction
-                u1[IDX(i,j)] = -(s[IDX(i+1,j)] - s[IDX(i,j)]) / dx;     //compute velocity in y direction at every grid point from streamfunction
+                u0[IDX(i,j)] =  (s[IDX(i,j+1)] - s[IDX(i,j)]) * dyi;     //compute velocity in x direction at every grid point from streamfunction
+                u1[IDX(i,j)] = -(s[IDX(i+1,j)] - s[IDX(i,j)]) * dxi;     //compute velocity in y direction at every grid point from streamfunction
             }
         }
 
@@ -917,8 +920,8 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     if((Nx == 1 )&& (Ny == 1)) {
         //if local domain is single cell not on boundary, then need access to data from two processes
         if(!boundaryDomain) {
-            u0[0] = (sTopData[0] - s[0]) / dy;
-            u1[0] = - (sRightData[0] - s[0]) / dx;
+            u0[0] = (sTopData[0] - s[0]) *dyi;
+            u1[0] = - (sRightData[0] - s[0]) *dxi;
         }
         //if cell is on top rank, impose velocity of 1 for u0; for all other boundaries, do nothing as velocity should be zero for no slip
         else if(topRank == MPI_PROC_NULL) {
@@ -929,26 +932,26 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     else if((Nx == 1) && (Ny != 1) && !((leftRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {    
         //compute 'top' and 'bottom' corners, unless at top/bottom boundaries
         if(bottomRank != MPI_PROC_NULL) {
-            u0[0] = (s[1] - s[0]) / dy;
-            u1[0] = - (sRightData[0] - s[0]) / dx;
+            u0[0] = (s[1] - s[0]) * dyi;
+            u1[0] = - (sRightData[0] - s[0]) * dxi;
         }
 
         if(topRank != MPI_PROC_NULL) {
-            u0[Ny-1] = (sTopData[0] - s[0]) / dy;
-            u1[Ny-1] = - (sRightData[0] - s[0]) / dx;
+            u0[Ny-1] = (sTopData[0] - s[0]) * dyi;
+            u1[Ny-1] = - (sRightData[0] - s[0]) * dxi;
         }
     }
     //unless at global top/bottom where BC is imposed, if local domain is row vector, do:
     else if((Nx != 1) && (Ny == 1) && !((topRank == MPI_PROC_NULL) || (bottomRank == MPI_PROC_NULL))) {            
         //compute 'left' and 'right' corners, unless at left/right boundaries
         if(leftRank != MPI_PROC_NULL) {
-            u0[0] = (sTopData[0] - s[0]) / dy;
-            u1[0] = - (s[1] - s[0]) / dx;
+            u0[0] = (sTopData[0] - s[0]) * dyi;
+            u1[0] = - (s[1] - s[0]) * dxi;
         }
 
         if(rightRank != MPI_PROC_NULL) {
-            u0[Nx-1] = (sTopData[Nx-1] - s[Nx-1]) / dy;
-            u1[Nx-1] = - (sRightData[0] - s[Nx-1]) / dx;
+            u0[Nx-1] = (sTopData[Nx-1] - s[Nx-1]) * dyi;
+            u1[Nx-1] = - (sRightData[0] - s[Nx-1]) * dxi;
         }
     }
     //compute corners of general case
@@ -956,23 +959,23 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
         //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
         //similar logic for bottom right, top left and top right corners respectively
         if(!((bottomRank == MPI_PROC_NULL) || (leftRank == MPI_PROC_NULL))) {
-            u0[IDX(0,0)] = (s[IDX(0,1)] - s[IDX(0,0)]) / dy;
-            u1[IDX(0,0)] = - (s[IDX(1,0)] - s[IDX(0,0)]) / dx;
+            u0[IDX(0,0)] = (s[IDX(0,1)] - s[IDX(0,0)]) * dyi;
+            u1[IDX(0,0)] = - (s[IDX(1,0)] - s[IDX(0,0)]) * dxi;
         }
 
         if(!((bottomRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {
-            u0[IDX(Nx-1,0)] = (s[IDX(Nx-1,1)] - s[IDX(Nx-1,0)]) / dy;
-            u1[IDX(Nx-1,0)] = - (sRightData[0] - s[IDX(Nx-1,0)]) / dx;
+            u0[IDX(Nx-1,0)] = (s[IDX(Nx-1,1)] - s[IDX(Nx-1,0)]) * dyi;
+            u1[IDX(Nx-1,0)] = - (sRightData[0] - s[IDX(Nx-1,0)]) * dxi;
         }
 
         if(!((topRank == MPI_PROC_NULL) || (leftRank == MPI_PROC_NULL))) {
-            u0[IDX(0,Ny-1)] = (sTopData[0] - s[IDX(0,Ny-1)]) / dy;
-            u1[IDX(0,Ny-1)] = - (s[IDX(1,Ny-1)] - s[IDX(0,Ny-1)]) / dx;
+            u0[IDX(0,Ny-1)] = (sTopData[0] - s[IDX(0,Ny-1)]) * dyi;
+            u1[IDX(0,Ny-1)] = - (s[IDX(1,Ny-1)] - s[IDX(0,Ny-1)]) * dxi;
         }
 
         if(!((topRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {
-            u0[IDX(Nx-1,Ny-1)] = (sTopData[Nx-1] - s[IDX(Nx-1,Ny-1)]) / dy;
-            u1[IDX(Nx-1,Ny-1)] = - (sRightData[Ny-1] - s[IDX(Nx-1,Ny-1)]) / dx;
+            u0[IDX(Nx-1,Ny-1)] = (sTopData[Nx-1] - s[IDX(Nx-1,Ny-1)]) * dyi;
+            u1[IDX(Nx-1,Ny-1)] = - (sRightData[Ny-1] - s[IDX(Nx-1,Ny-1)]) * dxi;
         }
     }
 
@@ -983,15 +986,15 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
     //if column vector domain, compute edge unless at left or right global boundary as BC already imposed along entire column
     if((Nx == 1) && (Ny > 1) && !((leftRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {
         for(int j = 1; j < Ny - 1; ++j) {
-            u0[j] = (s[j+1] - s[j]) / dy;
-            u1[j] = - (sRightData[j] - s[j]) / dx;
+            u0[j] = (s[j+1] - s[j]) * dyi;
+            u1[j] = - (sRightData[j] - s[j]) * dxi;
         }
     }
     //if row vector domain, compute edge unless at top or bottom global boundary as BC already imposed along entire row
     else if((Nx != 1) && (Ny == 1) && !((topRank == MPI_PROC_NULL) || (bottomRank == MPI_PROC_NULL))) {
         for(int i = 1; i < Nx - 1; ++i) {
-            u0[i] = (sTopData[i] - s[i]) / dy;
-            u1[i] = - (s[i+1] - s[i]) / dx;
+            u0[i] = (sTopData[i] - s[i]) * dyi;
+            u1[i] = - (s[i+1] - s[i]) * dxi;
         }
     }
     //compute for general case (exclude single cell case)
@@ -1000,30 +1003,30 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
         //same logic for all other points
         if(bottomRank != MPI_PROC_NULL) {
             for(int i = 1; i < Nx - 1; ++i) {
-                u0[IDX(i,0)] = (s[IDX(i,1)] - s[IDX(i,0)]) / dy;
-                u1[IDX(i,0)] = - (s[IDX(i+1,0)] - s[IDX(i,0)]) / dx;
+                u0[IDX(i,0)] = (s[IDX(i,1)] - s[IDX(i,0)]) * dyi;
+                u1[IDX(i,0)] = - (s[IDX(i+1,0)] - s[IDX(i,0)]) * dxi;
             }
         }
             
         if(topRank != MPI_PROC_NULL) {
             for(int i = 1; i < Nx - 1; ++i) {
-                u0[IDX(i,Ny-1)] = (sTopData[i] - s[IDX(i,Ny-1)]) / dy;
-                u1[IDX(i,Ny-1)] = - (s[IDX(i+1,Ny-1)] - s[IDX(i,Ny-1)]) / dx;
+                u0[IDX(i,Ny-1)] = (sTopData[i] - s[IDX(i,Ny-1)]) * dyi;
+                u1[IDX(i,Ny-1)] = - (s[IDX(i+1,Ny-1)] - s[IDX(i,Ny-1)]) * dxi;
             }
         }
             
         if(leftRank != MPI_PROC_NULL) {
         for(int j = 1; j < Ny - 1; ++j) {
-                u0[IDX(0,j)] = (s[IDX(0,j+1)] - s[IDX(0,j)]) / dy;
-                u1[IDX(0,j)] = - (s[IDX(1,j)] - s[IDX(0,j)]) / dx;
+                u0[IDX(0,j)] = (s[IDX(0,j+1)] - s[IDX(0,j)]) * dyi;
+                u1[IDX(0,j)] = - (s[IDX(1,j)] - s[IDX(0,j)]) * dxi;
             }
         }
             
         //only compute right coluymn if not at right of grid
         if(rightRank != MPI_PROC_NULL) {
             for(int j = 1; j < Ny - 1; ++j) {
-                u0[IDX(Nx-1,j)] =  (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j)]) / dy;
-                u1[IDX(Nx-1,j)] = - (sRightData[j] - s[IDX(Nx-1,j)]) / dx;
+                u0[IDX(Nx-1,j)] =  (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j)]) * dyi;
+                u1[IDX(Nx-1,j)] = - (sRightData[j] - s[IDX(Nx-1,j)]) * dxi;
             }
         }
     }

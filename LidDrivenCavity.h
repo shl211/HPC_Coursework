@@ -9,6 +9,20 @@ class SolverCG;
  * @class LidDrivenCavity
  * @brief Class that describes the properties of the lid driven cavity problem.
  * 
+ * 
+ * <table>
+ *   <tr>
+ *     <td>
+ *       @image html domain.png "Lid driven cavity domain"
+ *     </td>
+ *     <td>
+ *       @image html discreteDomain.png "Lid driven cavity discretised domain"
+ *     </td>
+ *   </tr>
+ * </table>
+ * 
+ * 
+ * 
  * The fluid flow in this problem can be characterised in both time and space \f$ (x,y) \f$. This class contains methods that allow for the 
  * 2D incompressible Navier-Stokes equations to be evaluated on the problem domain \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ 
  * is the domain length in \f$ x \f$ direction and \f$ L_y \f$ is the domain length in the \f$ y \f$ direction. The problem time domain is \f$ t\in[0,T_f] \f$ 

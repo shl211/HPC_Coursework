@@ -116,7 +116,7 @@ void SolverCG::Solve(double* b, double* x) {
 
     //want error squared for summation (as 2-norm isn't linear but 2-normed squared is) to get global/actual error
     eps = cblas_dnrm2(n, b, 1);
-    eps *= eps;                                     
+    eps *= eps;    
 
     MPI_Allreduce(&eps,&globalEps,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     globalEps = sqrt(globalEps);
