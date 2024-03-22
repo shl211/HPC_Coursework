@@ -27,10 +27,10 @@ int main(int argc, char* argv[])
     }
     
     //check if input rank is square number size = p^2
-    int p = round(sqrt(size));                                                              //round sqrt to nearest whole number; is square if p*p equals original size
+    int p = round(sqrt(size));
     
     if((p*p != size) | (size < 1)) {                                                        //if not a square number, print error and terminate program
-        if(worldRank == 0)                                                                  //print only on root rank
+        if(worldRank == 0)
             cout << "Invalide process size. Process size must be square number of size p^2 and greater than 0" << endl;
             
         MPI_Finalize();
@@ -64,17 +64,21 @@ int main(int argc, char* argv[])
     po::notify(vm);
 
     if (vm.count("help")) {       
-        if(worldRank == 0)                                                                  //only print on root rank
+        if(worldRank == 0)
             cout << opts << endl;
         
         MPI_Finalize();
         return 0;
     }
 
-    //don't let user put less grid points in a dimension than processes, prevent processes having no data
-    if((vm["Nx"].as<int>() < p) | (vm["Ny"].as<int>() < p)) {              
+    //don't let user use excessive number of processes for the specified grid size
+    //for example no point using 4x4 processes to compute anything smaller than 8x8 grid, would be slower
+    //protect code from a small bug in processing certain special cases that occur for above case, leads to slightly erroneous solution
+    //also catches case where a process ends up having no data to process
+    if((vm["Nx"].as<int>()*2 < p) || (vm["Ny"].as<int>()*2 < p)) {
+
         if(worldRank == 0)
-            cout << "Nx and/or Ny < p, where there are p^2 ranks. Reduce processors, or increase the number of grid points" << endl;
+            cout << "Excessive number of processes (p^2) for specified grid size. Ensure 2*Nx < p and 2*Ny < p" << endl;
 
         MPI_Finalize();
         return 1;

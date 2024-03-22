@@ -64,27 +64,36 @@ An example program execution is shown below, with initial data written into ic.t
 
 ```bash
 
-$ mpiexec --bind-to none -np 1 ./solver
-    Grid size: 9 x 9
-    Spacing:   0.125 x 0.125
-    Length:    1 x 1
-    Grid pts:  81
-    Timestep:  0.01
-    Steps:     100
-    Reynolds number: 10
-    Linear solver: preconditioned conjugate gradient
+$ export OMP_NUM_THREADS=1
 
-    Writing file ic.txt
-    Step:        0  Time:        0
-    Converged in 18 iterations. eps = 3.58044e-07
-    Step:        1  Time:     0.01
-    Converged in 20 iterations. eps = 1.7466e-07
-    Step:        2  Time:     0.02
+$ mpiexec --bind-to none -np 1 ./solver --Lx 1 --Ly 1 --Nx 201 --Ny 201 --Re 1000 --dt 0.005 --T 1
+
+  Grid size: 201 x 201
+  Spacing:   0.005 x 0.005
+  Length:    1 x 1
+  Grid pts:  40401
+  Timestep:  0.005
+  Steps:     200
+  Reynolds number: 1000
+  Linear solver: preconditioned conjugate gradient
+
+  Reynolds number: 1000
+  Linear solver: preconditioned conjugate gradient
+
+  Writing file ic.txt
+  Step:        0  Time:        0
+  Converged in 567 iterations. eps = 9.50342e-07
+  Step:        1  Time:    0.005
+  Converged in 597 iterations. eps = 9.91513e-07
+  Step:        2  Time:     0.01
+  Converged in 590 iterations. eps = 9.32345e-07
 
 ...
 
-    Converged in 570 iterations. eps = 9.65915e-07
-    Step:      199  Time:    0.995
-    Converged in 570 iterations. eps = 9.65219e-07
-    Writing file final.txt
+  Step:      198  Time:     0.99
+  Converged in 570 iterations. eps = 9.65645e-07
+  Step:      199  Time:    0.995
+  Converged in 570 iterations. eps = 9.64797e-07
+  Writing file final.txt
+
 ```

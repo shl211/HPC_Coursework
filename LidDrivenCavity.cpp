@@ -10,9 +10,9 @@ using namespace std;
 #include <omp.h>
 
 /**
- * @brief Macro to map coordinates (i,j) onto it's corresponding location in memory, assuming row-wise matrix storage
- * @param I     coordinate i denoting horizontal position of grid from left to right
- * @param J     coordinate j denoting vertical position of grid from bottom to top
+ * @brief Macro to map coordinates \f$ (i,j) \f$ onto its corresponding location in memory, assuming row-wise matrix storage
+ * @param I     coordinate \f$ i \f$ denoting horizontal position of grid from left to right
+ * @param J     coordinate \f$ j \f$ denoting vertical position of grid from bottom to top
  */
 #define IDX(I,J) ((J)*Nx + (I))
 
@@ -24,7 +24,7 @@ LidDrivenCavity::LidDrivenCavity()
     //create Cartesian communicator and row and column communicators, also assigns size of row/column communicators
     CreateCartGrid(comm_Cart_grid,comm_row_grid,comm_col_grid);
     
-    //compute ranks along the row communciator and the column communicator
+    //compute ranks along the row column communicator
     MPI_Comm_rank(comm_row_grid, &rowRank);                             
     MPI_Comm_rank(comm_col_grid, &colRank);
 
@@ -43,16 +43,14 @@ LidDrivenCavity::LidDrivenCavity()
     globalLx = Lx;
     globalLy = Ly;                                                  //assign global values
 
-    //now discretise grid domains and update values appropriately
     SplitDomainMPI(comm_Cart_grid,globalNx,globalNy,globalLx, globalLy, Nx, Ny, Lx, Ly,xDomainStart,yDomainStart);
     UpdateDxDy();
 }
 
 LidDrivenCavity::~LidDrivenCavity()
 {
-    CleanUp();                                                      //deallocate memory
+    CleanUp();
 
-    //clean up MPI communicators
     MPI_Comm_free(&comm_Cart_grid);
     MPI_Comm_free(&comm_row_grid);
     MPI_Comm_free(&comm_col_grid);
@@ -139,18 +137,16 @@ void LidDrivenCavity::SetDomainSize(double xlen, double ylen)
     globalLx = xlen;
     globalLy = ylen;
 
-    //split domain up appropriately and update local values, including grid spacing
+    //update local domain with right size and values
     SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);
     UpdateDxDy();
 }
 
 void LidDrivenCavity::SetGridSize(int nx, int ny)
 {
-    //global values are entered and stored
     globalNx = nx;
     globalNy = ny;
 
-    //split domain up appropriately and update local values
     SplitDomainMPI(comm_Cart_grid, globalNx, globalNy, globalLx, globalLy,Nx, Ny, Lx,Ly,xDomainStart,yDomainStart);
     UpdateDxDy();
 }
@@ -174,15 +170,16 @@ void LidDrivenCavity::SetReynoldsNumber(double re)
 
 void LidDrivenCavity::Initialise()
 {
-    CleanUp();                                                           //deallocate memory
+    CleanUp();
 
-    //allocate member variable arrays and initialise with zeros
+    // v-> vorticity, s-> streamfunction
     v   = new double[Npts]();
-    vNext = new double[Npts]();
+    vNext = new double[Npts]();     //v at next time step
     s   = new double[Npts]();
     tmp = new double[Npts]();
     cg  = new SolverCG(Nx, Ny, dx, dy,comm_row_grid,comm_col_grid);
     
+    //store data from neighbouring processes here (leftData => data from left process)
     vTopData = new double[Nx]();                                        //top and bottom data row have size local 1 x Nx
     vBottomData = new double[Nx]();
     vLeftData = new double[Ny]();                                       //left and right data column have size local Ny x 1
@@ -193,17 +190,16 @@ void LidDrivenCavity::Initialise()
     sLeftData = new double[Ny]();
     sRightData = new double[Ny]();
 
-    //no need to initalise these temporary arrays, will be overwritten
     tempLeft = new double[Ny];
     tempRight = new double[Ny];
 }
 
 void LidDrivenCavity::Integrate()
 {
-    int NSteps = ceil(T/dt);                                        //number of time steps required, rounded up
+    int NSteps = ceil(T/dt);                                        //number of time steps required
     for (int t = 0; t < NSteps; ++t)
     {
-        if((rowRank == 0) && (colRank == 0)) {                       //only print on root rank
+        if((rowRank == 0) && (colRank == 0)) {                      //only print on root rank
             std::cout << "Step: " << setw(8) << t
                       << "  Time: " << setw(8) << t*dt
                       << std::endl;                                 //after each step, output time and step information
@@ -222,12 +218,11 @@ void LidDrivenCavity::WriteSolution(std::string file)
 
     //------------------------------------------Gather Data to Write Solution to File--------------------------------------------------------------//
     /*Data stored in row major format and printed columnwise. Gather all data at root of each column communicator
-    Root column process (bottom row of grid) holds all data for the entire column, can print sequentially from left to right
-    Root column processes have rank colRank = 0 and share a row communicator (this exploits sequential labelling of ranks in Cartesian subgrids row and columns)*/
+    Root column process (bottom row of grid) holds all data for the entire column, can print columns sequentially from left to right
+    Root column processes have rank colRank = 0 and share a row communicator (exploits sequential labelling of ranks in Cartesian subgrids row and columns)*/
 
     double* sAllCol = new double[Nx*globalNy]();
     double* vAllCol = new double[Nx*globalNy]();
-
     double* u0AllCol = new double[Nx*globalNy]();
     double* u1AllCol = new double[Nx*globalNy]();         
 
@@ -259,7 +254,7 @@ void LidDrivenCavity::WriteSolution(std::string file)
         else{
             //blocking receive to force process to wait until LHS root column process finished writing before writing -> ensure column-by-column format
             MPI_Recv(&goAheadMessage,1,MPI_INT,leftRank,10,comm_row_grid,MPI_STATUS_IGNORE);
-            f.open(file.c_str(),std::ios::app);                         //other processes should append data to file, not overwrite
+            f.open(file.c_str(),std::ios::app);                         //other processes should append data to file
         }
         
         int k = 0;
@@ -286,13 +281,13 @@ void LidDrivenCavity::WriteSolution(std::string file)
     delete[] vAllCol;
     delete[] u0AllCol;
     delete[] u1AllCol;
-    //ensure all processes have finished writing before proceeding, prevents access errors if file to be opened after end of function
+    //ensure all processes have finished writing before proceeding, prevents access errors if file to be opened after function call
     MPI_Barrier(MPI_COMM_WORLD);                                                
 }
 
 void LidDrivenCavity::PrintConfiguration()
 {
-    if((rowRank == 0) && (colRank == 0)) {                                       //only print on root rank
+    if((rowRank == 0) && (colRank == 0)) {                                      //only print on root rank
         cout << "Grid size: " << globalNx << " x " << globalNy << endl;         //print the current global problem configuration of the lid driven cavity
         cout << "Spacing:   " << dx << " x " << dy << endl;
         cout << "Length:    " << globalLx << " x " << globalLy << endl;
@@ -317,7 +312,6 @@ void LidDrivenCavity::PrintConfiguration()
 
 void LidDrivenCavity::CleanUp()
 {
-    //if arrays are allocated, deallocate
     if (v) {                        
         delete[] v;
         delete[] vNext;
@@ -354,7 +348,7 @@ void LidDrivenCavity::Advance()
     //compute current vorticity from streamfunction with 2nd order finite central difference (2FCD)
     ComputeVorticity();
 
-    //compute vorticity at next time step from current time step with streamfunction adn vorticity with 2FCD
+    //compute vorticity at next time step from current time step with streamfunction and vorticity with 2FCD
     ComputeTimeAdvanceVorticity();
 
     // Solve Poisson problem to get streamfunction at next time step -> flow properties at next time step now known
@@ -401,12 +395,12 @@ void LidDrivenCavity::ComputeVorticity() {
     //--------------------------------------Step 2: Compute Vorticity on Corners of Local Domain------------------------------------------//
     //------------------------------------------------------------------------------------------------------------------------------------//
 
-    //if single cell domain not on global boundary, need acess to all four datasets
+    //special case: single cell domain not on global boundary, need acess to all four datasets
     if((Nx == 1) && (Ny == 1) && !boundaryDomain) {   
         v[0] = dx2i * (2.0 * s[0] - sRightData[0] - sLeftData[0])
             + dy2i * (2.0 * s[0] - sTopData[0] - sBottomData[0]);
     }
-    //unless at global left/right where BC is imposed, if local domain is column vector, do:
+    //special case: unless at global left/right where BC is imposed, if local domain is column vector, do:
     else if ((Nx == 1) && (Ny != 1)  && !((leftRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {
         //if it's top boundary process, don't repeat calculation of top 'corner'; same logic for bottom
         if(topRank != MPI_PROC_NULL) { 
@@ -419,7 +413,7 @@ void LidDrivenCavity::ComputeVorticity() {
                         + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);
         }
     }
-    //unless at global top/bottom where BC is imposed, if local domain is row vector, do:
+    //special case: unless at global top/bottom where BC is imposed, if local domain is row vector, do:
     else if ((Nx != 1) && (Ny == 1) && !((topRank == MPI_PROC_NULL) || (bottomRank == MPI_PROC_NULL))) {    
         //if it's left boundary process, don't repeat calculation of left 'corner'; same logic for right 
         if(leftRank != MPI_PROC_NULL) { 
@@ -434,13 +428,13 @@ void LidDrivenCavity::ComputeVorticity() {
     }
     //compute corners for general case
     else {
-        //don't repeat calculation for bottom left corner of process domain if process is at the left or bottom of grid (BC already imposed)
-        //same logic for bottom right, top left, and top right
+        //don't repeat calculation for bottom left corner of process domain if process is at the left or bottom of grid (BC will be imposed)
         if(!((bottomRank == MPI_PROC_NULL) || (leftRank == MPI_PROC_NULL))) {
             v[IDX(0,0)] = dx2i * (2.0 * s[IDX(0,0)] - s[IDX(1,0)] - sLeftData[0])
                             + dy2i * (2.0 * s[IDX(0,0)] - s[IDX(0,1)] - sBottomData[0]);  
         }
         
+        //same logic for all other corners
         if(!((bottomRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {
             v[IDX(Nx-1,0)] = dx2i * (2.0 * s[IDX(Nx-1,0)] - sRightData[0] - s[IDX(Nx-2,0)])
                         + dy2i * (2.0 * s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)] - sBottomData[Nx-1]);
@@ -461,14 +455,14 @@ void LidDrivenCavity::ComputeVorticity() {
     //--------------------------------------Step 3: Compute Vorticity on Edges of Local Domain--------------------------------------------//
     //------------------------------------------------------------------------------------------------------------------------------------//
 
-    //unless at global left/right where BC is imposed, if local domain is column vector, compute data between top and bottom corners
+    //special case: unless at global left/right where BC is imposed, if local domain is column vector, compute data between top and bottom corners
     if((Nx == 1) && (Ny > 1 ) && !((leftRank == MPI_PROC_NULL) || (rightRank == MPI_PROC_NULL))) {    
         for(int j = 1; j < Ny - 1; ++j) {
             v[IDX(0,j)] = dx2i * (2.0 * s[IDX(0,j)] - sRightData[j] - sLeftData[j])
                         + dy2i * (2.0 * s[IDX(0,j)] - s[IDX(0,j+1)] - s[IDX(0,j-1)]);
         }
     }
-    //unless at global top/bottom where BC is imposed, if local domain is row vector, compute data between left and right corners
+    //special case: unless at global top/bottom where BC is imposed, if local domain is row vector, compute data between left and right corners
     else if((Nx > 1) && (Ny == 1) && !((topRank == MPI_PROC_NULL) || (bottomRank == MPI_PROC_NULL))) {
         for(int i = 1; i < Nx - 1; ++i) {
             v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])
@@ -478,14 +472,14 @@ void LidDrivenCavity::ComputeVorticity() {
     //compute edges for general case (exclude single cell domain -> 'corner' is sufficient)
     else if((Nx != 1) && (Ny != 1)) {
         //if process at bottom of grid, don't need to do anything as BC imposed
-        //same logic for other sides
         if(bottomRank != MPI_PROC_NULL) {
             for(int i = 1; i < Nx - 1; ++i) {
                 v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])
                             + dy2i * (2.0 * s[IDX(i,0)] - s[IDX(i,1)] - sBottomData[i]);
             }
         }
-
+        
+        //same logic for other sides
         if(topRank != MPI_PROC_NULL) {
             for(int i = 1; i < Nx - 1; ++i) {
                 v[IDX(i,Ny-1)] = dx2i * (2.0 * s[IDX(i,Ny-1)] - s[IDX(i+1,Ny-1)] - s[IDX(i-1,Ny-1)])
@@ -511,10 +505,9 @@ void LidDrivenCavity::ComputeVorticity() {
     //------------------------------------------------------------------------------------------------------------------------------------//
     //--------------------------------------Step 4: Impose Global Boundary Conditions-----------------------------------------------------//
     //------------------------------------------------------------------------------------------------------------------------------------//    
-    //no parallel region here as testing with Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T-0.1 always led to slower performance//
-    //note that corners are left untouched as per original code
+    //no parallel region here as testing with Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T-0.1 always led to slower performance
+    //note that no BCs are imposed on corners as per original code
 
-    //some data stored here to simplify if statements for identifying global corners
     double val1,val2;     
 
     //assign bottom BC, only special case is row vector (single cell is subset)
@@ -630,7 +623,7 @@ void LidDrivenCavity::ComputeVorticity() {
 
 void LidDrivenCavity::ComputeTimeAdvanceVorticity() {
     //assume s data already sent and received by ComputeVorticity
-    double dxi  = 1.0/dx;           //precompute some common division terms
+    double dxi  = 1.0/dx;
     double dyi  = 1.0/dy;
     double dx2i = 1.0/dx/dx;
     double dy2i = 1.0/dy/dy;
@@ -664,10 +657,10 @@ void LidDrivenCavity::ComputeTimeAdvanceVorticity() {
         }
     
     //receive the data as need it for next process
-    MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);                     //bottom row of process is data sent up from process below              
-    MPI_Recv(vBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);               //top row of process is data send down from process above
-    MPI_Recv(vLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);                   //right column of process is data sent from process to right
-    MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);                 //left column of process is data sent from process to left
+    MPI_Recv(vTopData,Nx,MPI_DOUBLE,topRank,1,comm_col_grid,MPI_STATUS_IGNORE);            
+    MPI_Recv(vBottomData,Nx,MPI_DOUBLE,bottomRank,0,comm_col_grid,MPI_STATUS_IGNORE);
+    MPI_Recv(vLeftData,Ny,MPI_DOUBLE,leftRank,3,comm_row_grid,MPI_STATUS_IGNORE);
+    MPI_Recv(vRightData,Ny,MPI_DOUBLE,rightRank,2,comm_row_grid,MPI_STATUS_IGNORE);
 
     //------------------------------------------------------------------------------------------------------------------------------------//
     //---------------------------------Step 2: Compute Time AdvanceVorticity on Corners of Local Domain-----------------------------------//
@@ -1022,7 +1015,6 @@ void LidDrivenCavity::ComputeVelocity(double* u0, double* u1) {
             }
         }
             
-        //only compute right coluymn if not at right of grid
         if(rightRank != MPI_PROC_NULL) {
             for(int j = 1; j < Ny - 1; ++j) {
                 u0[IDX(Nx-1,j)] =  (s[IDX(Nx-1,j+1)] - s[IDX(Nx-1,j)]) * dyi;
@@ -1052,10 +1044,10 @@ void LidDrivenCavity::CreateCartGrid(MPI_Comm &cartGrid,MPI_Comm &rowGrid, MPI_C
     this-> size = size;                                                 //assign to member variable
     
     //check if input rank is square number size = p^2
-    int p = round(sqrt(size));                                          //round sqrt to nearest whole number
+    int p = round(sqrt(size));
     
     if((p*p != size) || (size < 1)) {                                    //if not a square number, print error and terminate program
-        if(worldRank == 0)                                              //print only on root rank
+        if(worldRank == 0)
             cout << "Invalid process size. Process size must be square number of size p^2 and greater than 0" << endl;
             
         MPI_Finalize();

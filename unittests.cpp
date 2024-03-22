@@ -19,20 +19,20 @@
 #include "SolverCG.h"
 
 /**
- * @brief Macro to map coordinates (i,j) onto it's corresponding location in memory, assuming row-wise matrix storage
- * @param I     coordinate i denoting horizontal position of grid from left to right
- * @param J     coordinate j denoting vertical position of grid from bottom to top
+ * @brief Macro to map coordinates \f$ (i,j) \f$ onto its corresponding location in memory, assuming row-wise matrix storage
+ * @param I     coordinate \f$ i \f$ denoting horizontal position of grid from left to right
+ * @param J     coordinate \f$ j \f$ denoting vertical position of grid from bottom to top
  */
 #define IDX(I,J) ((J)*localNx + (I))
 
 /**
  * @brief Allow MPI to be initialised and finalised once throughout the unit test
 */
-struct MPISetUp {
+struct MPIFixture {
     /**
      * @brief Initialise MPI
     */
-    MPISetUp() {
+    MPIFixture() {
         // Access argc and argv from Boost Test framework
         int& argc = boost::unit_test::framework::master_test_suite().argc;
         char**& argv = boost::unit_test::framework::master_test_suite().argv;
@@ -42,12 +42,12 @@ struct MPISetUp {
     /**
      * @brief Finalise MPI
     */
-    ~MPISetUp() {
+    ~MPIFixture() {
         MPI_Finalize();
     }
 };
 
-BOOST_GLOBAL_FIXTURE(MPISetUp);
+BOOST_GLOBAL_FIXTURE(MPIFixture);
 
 /**
  * @brief Create Cartesian topology grid and column and row communicators
@@ -67,8 +67,8 @@ void CreateCartGridVerify(MPI_Comm &comm_Cart_Grid,MPI_Comm &comm_row_grid, MPI_
     int p = round(sqrt(size));                                          //round sqrt to nearest whole number
     
     if((p*p != size) | (size < 1)) {                                    //if not a square number, print error and terminate program
-        if(worldRank == 0)                                              //print only on root rank
-            cout << "Invalide process size. Process size must be square number of size p^2 and greater than 0" << endl;
+        if(worldRank == 0)
+            cout << "Invalid process size. Process size must be square number of size p^2 and greater than 0" << endl;
             
         MPI_Finalize();
         exit(-1);
@@ -274,7 +274,9 @@ BOOST_AUTO_TEST_CASE(SolverCG_Solve_SinusoidalInput)
 
     SolverCG test(localNx,localNy,dx,dy,row,col);       //create test solver
     
-    //generate the sinusoidal test case input b, make sure each process calculates the correct chunk and stores it in its local memory
+    //generate the sinusoidal test case input b
+    //i+localNx ensures each process calculates correct chunk of global domain
+    //then assign the chunk of global data and place it in correct place in terms of local domain
     for (int i = xStart; i < xStart + localNx; ++i) {                                           //pluses to make sure each process calculates the correct value...
         for (int j = yStart; j < yStart + localNy; ++j) {                                       //that its local domain represents in the global domain
             b[IDX(i - xStart,j - yStart)] = -M_PI * M_PI * (k * k + l * l)                      //minus in index to ensure values are written...
@@ -295,10 +297,10 @@ BOOST_AUTO_TEST_CASE(SolverCG_Solve_SinusoidalInput)
     //compute error between analytical and solver, store in x_actual
     cblas_daxpy(n, -1.0, x, 1, x_actual, 1);
 
-    double e = cblas_dnrm2(n,x_actual,1);
     double globalError;
-
+    double e = cblas_dnrm2(n,x_actual,1);
     e *= e;                                                             //2-norm error, to reduce local to global, need to sum squares of error for linearity
+   
     MPI_Allreduce(&e,&globalError,1,MPI_DOUBLE,MPI_SUM,MPI_COMM_WORLD);
     globalError = sqrt(globalError);                                    //summed error squared, so use square root to get 2-norm of global error
 
@@ -432,7 +434,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetGridSize) {
     double localLx,localLy;
     
     CreateCartGridVerify(grid,row,col);
-    //default Nx, Ny is 9; should be split by constructor into localNx and localNy; Lx and Ly should also be split into correct localLx and localLy
+    //Nx, Ny should be split by constructor into localNx and localNy; Lx and Ly should also be split into correct localLx and localLy
     SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,localLx,localLy,iIgnore,iIgnore);
     
     LidDrivenCavity test;
@@ -518,7 +520,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_SetReynoldsNumber) {
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 {
     /*Define a test case with different numbers for each variable to ensure each variable is printed correctly
-    Other values for reference are flow speed U = 1.0, kinematic viscosity nu = 0.01 and step sizes dx = 0.05 and dy = 0.2
+    Other values, for reference, are flow speed U = 1.0, kinematic viscosity nu = 0.01 and step sizes dx = 0.05 and dy = 0.2
     This gives nu*dt/dx/dy = 0.2 < 0.25 so solver should not exit
     These describe the GLOBAL domain, not local
     */
@@ -546,13 +548,13 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
 
     CreateCartGridVerify(grid,row,col);
     MPI_Comm_rank(row,&rowRank);
-    MPI_Comm_rank(col,&colRank);                            //need to know as printing should only occur on root rank, or rowRank = 0 and colRank = 0
+    MPI_Comm_rank(col,&colRank);                            //need to know as printing should only occur on root rank, i.e. (rowRank = 0 and colRank = 0)
 
     LidDrivenCavity test;
     
-    // Redirect cout to a stringstream for capturing the output
-    std::stringstream terminalOutput;
-    std::streambuf* printConfigData = std::cout.rdbuf(terminalOutput.rdbuf());
+    // Redirect cout to a stringstream for capturing the output via pointers
+    stringstream terminalOutput;
+    streambuf* printConfigData = cout.rdbuf(terminalOutput.rdbuf());
 
     // Invoke setting functions and print the solver configuration to stringstream
     test.SetDomainSize(Lx,Ly);
@@ -563,10 +565,10 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_PrintConfiguration)
     test.PrintConfiguration();
 
     // Restore the original cout
-    std::cout.rdbuf(printConfigData);
+    cout.rdbuf(printConfigData);
 
     //check if desired string is present in the terminal output
-    std::string output = terminalOutput.str();
+    string output = terminalOutput.str();
 
     //root rank should print, so check data printed correctly
     if((rowRank == 0) & (colRank == 0)) {
@@ -616,10 +618,6 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Initialise) {
     CreateCartGridVerify(grid,row,col);
     SplitDomainMPIVerify(grid, Nx, Ny, Lx,Ly,localNx,localNy,dIgnore,dIgnore,xStart,yStart);    //compute local domain of each process
     int localNpts = localNx*localNy;                            //local number of points in process
-
-    /*//compute ranks for adjacent grids for data transfer, if at boundary, returns -2 (MPI_PROC_NULL)
-    int bottomRank,topRank;
-    MPI_Cart_shift(col,0,1,&bottomRank,&topRank);//from bottom to top*/
 
     //set up lid driven cavity class and configure the problem
     LidDrivenCavity test;
@@ -700,7 +698,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
 
     //set up MPI for solver and split domain equally
     int worldRank; 
-    MPI_Comm_rank(MPI_COMM_WORLD,&worldRank);                       //get world rank
+    MPI_Comm_rank(MPI_COMM_WORLD,&worldRank);
 
     //set up lid driven cavity class and configure the problem
     LidDrivenCavity test;
@@ -711,18 +709,18 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     test.SetReynoldsNumber(Re);
     test.Initialise();
     
-    std::string fileName = "testOutput";                            //output initial conditions to file named testOutput
-    test.WriteSolution(fileName);                                   //only produces one file, even in MPI
+    string fileName = "testOutput";                            //output initial conditions to file named testOutput
+    test.WriteSolution(fileName);                              //only produces one file, even in MPI
 
-    std::ifstream outputFile(fileName);             //create stream for file, let each process read it as independent access for reading
-    BOOST_REQUIRE(outputFile.is_open());            //check if file has been created by seeing if it can be opened, if doesn't exist, terminate
+    ifstream outputFile(fileName);                             //create stream for file, let each process read it as independent access for reading
+    BOOST_REQUIRE(outputFile.is_open());                       //check if file has been created by seeing if it can be opened, if doesn't exist, terminate
     
     /*read data from file and check initial conditions -> verifies WriteSolution();
     expect format of x,y,vorticity,streamfunction,vx,vy
     initial condition, so vorticity and streamfunction should be zeros everywhere, and only top surface should have vx = 1*/
     
-    std::string line;                                               //variable to capture line of data from file
-    std::string xData,yData,vData,sData,vxData,vyData;              //temporary string variables
+    string line;                                               //variable to capture line of data from file
+    string xData,yData,vData,sData,vxData,vyData;              //temporary string variables
     
     double* xDataSet = new double[Nx*Ny];
     double* yDataSet = new double[Nx*Ny];
@@ -736,14 +734,14 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
     int dataPoints = 0;                                             //counter to track number of data points printed, should equal Nx*Ny
     unsigned int dataCol = 0;                                       //conter for number of columns per row, should be 6
 
-    while(std::getline(outputFile,line)) {                          //keep getting line if line exists
+    while(getline(outputFile,line)) {
         
         if(line.empty()) {
             continue;                                               //if empty line in file, skip as it separates the data points
         }
         
         //first check that there are six datapoints per row
-        std::stringstream dataCheck(line); 
+        stringstream dataCheck(line); 
         
         while (dataCheck >> xData) {
                 dataCol++;                                          //calculate how many data points per line
@@ -809,13 +807,15 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_WriteSolution)
 }
 
 /**
- * @test Tests whether the time domain solver LidDrivenCavity::Integrator works correctly by comparing problem to a reference dataset
+ * @test Tests whether the time domain solver LidDrivenCavity::Integrator works correctly by comparing problem to a reference dataset.
+ * This reference case is --Lx 1 --Ly 1 --Nx 101 --Ny 101 --dt 0.01 --T 10 --Re 1000. For serial case, should take around one to two minutes,
+ * so sit back and relax :).
  * @note Reference dataset generated via serial version of this solver
  *******************************************************************************************************************************/
 BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator) 
 {
     //take a case where steady state is reached -> rule of thumb, fluid should pass through at least 10 times to reach SS
-    //For reference dx dy = 0.005 and nu*dt/dx/dy = 0.2 < 0.25
+    //For reference dx dy = 0.01 and nu*dt/dx/dy = 0.001 < 0.25
     double dt   = 0.01;
     double T    = 10;
     int    Nx   = 101;

@@ -46,9 +46,9 @@ public:
 
     /**
      * @brief Computes the solution to \f$ -\nabla ^ 2 x = b \f$ via a preconditioned conjugate gradient method. 
-     * This equation is formulated as \f$ Ax=b \f$. Note that A describes the coefficients of a 
+     * This equation is formulated as \f$ Ax=b \f$. Note that \f$ A \f$ describes the coefficients of a 
      * second-order central-difference discretisation of the operator \f$ -\nabla^2 \f$
-     * @param[in] b     The desired result; in this context, the vorticity
+     * @param[in] b     The desired result (in this context, the vorticity)
      * @param[in,out] x     On input, initial guess \f$ x_0 \f$; on output the computed solution (in this context, the streamfunction)
      */
     void Solve(double* b, double* x);
@@ -69,20 +69,20 @@ private:
     int globalNx;                           ///<Number of grid points in global domain in x direction
     int globalNy;                           ///<Number of grid points in global domain in y direction
 
-    int rowRank;        ///<rank of current process in #comm_row_grid
-    int colRank;        ///<rank of current process in #comm_col_grid
-    int topRank;        ///<rank of process above current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing above
-    int bottomRank;     ///<rank of process to bottom of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing below
-    int leftRank;       ///<rank of process to left of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to left
-    int rightRank;      ///<rank of process to right of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to right
+    int rowRank;        ///<Rank of current process in #comm_row_grid
+    int colRank;        ///<Rank of current process in #comm_col_grid
+    int topRank;        ///<Rank of process above current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing above
+    int bottomRank;     ///<Rank of process to bottom of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing below
+    int leftRank;       ///<Rank of process to left of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to left
+    int rightRank;      ///<Rank of process to right of current process in Cartesian grid, equals -2 (MPI_PROC_NULL) if nothing to right
 
-    int i;            ///<loop counters
-    int j;            ///<loop counters
+    int i;            ///<Loop counters
+    int j;            ///<Loop counters
 
     /// MPI_Request handle to check data send -> [0] = send to top, [1] = send to bottom, [2] = send left, [3] = send right
     MPI_Request requests[4];                    
 
-    bool boundaryDomain;                        ///<denotes whether the process is at the boundary of the Cartesian grid
+    bool boundaryDomain;                        ///<Denotes whether the process is at the boundary of the Cartesian grid
 
     double* topData;                            ///<Store data from top process in Cartesian grid
     double* bottomData;                         ///<Store data from bototm process in Cartesian grid
@@ -103,7 +103,7 @@ private:
      * @brief Preconditions the matrix \f$ p \f$
      * 
      * Precondition all elements in matrix \f$ p \f$ that do not correspond to the global domain boundary.
-     * Uses precondition factor \f$ \frac {1}{2*(dx^2 + dy^2)} \f$ for interior points and leaves global domain boundaries untouched.
+     * Divides interior points by precondition factor \f$ 2(dx^2 + dy^2) \f$ and leaves global domain boundaries untouched.
      * Prevent ill-condition and improve convergence rate.
      * 
      * @param[in] p     Input matrix to be preconditioned
@@ -112,8 +112,8 @@ private:
     void Precondition(double* p, double* t);
     
     /**
-     * @brief Impose zero boundary conditions around the edge of the matrix \f$ AX \f$
-     * @param[in,out] p     On input, the matrix \f$ AX \f$ ; on output, the matrix \f$ AX \f$ with imposed boundary conditions
+     * @brief Impose zero boundary conditions around the edge of the matrix \f$ p \f$
+     * @param[in,out] p     On input, the matrix \f$ p \f$ ; on output, the matrix \f$ p \f$ with imposed zero boundary conditions
      *****************************************************************************************************************************************/
     void ImposeBC(double* p);
 

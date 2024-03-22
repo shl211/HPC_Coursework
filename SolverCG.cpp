@@ -11,9 +11,9 @@ using namespace std;
 #include "SolverCG.h"
 
 /**
- * @brief Macro to map coordinates (i,j) onto it's corresponding location in memory, assuming row-wise matrix storage
- * @param I     coordinate i denoting horizontal position of grid from left to right
- * @param J     coordinate j denoting vertical position of grid from bottom to top
+ * @brief Macro to map coordinates \f$ (i,j) \f$ onto its corresponding location in memory, assuming row-wise matrix storage
+ * @param I     coordinate \f$ i \f$ denoting horizontal position of grid from left to right
+ * @param J     coordinate \f$ j \f$ denoting vertical position of grid from bottom to top
  */
 #define IDX(I,J) ((J)*Nx + (I))
 
@@ -25,7 +25,7 @@ using namespace std;
 
 SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, MPI_Comm &colGrid)
 {
-    //SolverCG expects domain values to be already discretised, so all member variables are local unless otherwise stated
+    //All member variables are local unless otherwise stated
     dx = pdx;
     dy = pdy;
     Nx = pNx;
@@ -60,7 +60,7 @@ SolverCG::SolverCG(int pNx, int pNy, double pdx, double pdy,MPI_Comm &rowGrid, M
     if((topRank != MPI_PROC_NULL) & (bottomRank != MPI_PROC_NULL) & (leftRank != MPI_PROC_NULL) & (rightRank != MPI_PROC_NULL))
         boundaryDomain = false;
     else
-        boundaryDomain = true;                      //check whether the current process is on the global domain/grid boundary
+        boundaryDomain = true;
 }
 
 SolverCG::~SolverCG()
@@ -115,6 +115,7 @@ void SolverCG::Solve(double* b, double* x) {
     double globalEps;
 
     //want error squared for summation (as 2-norm isn't linear but 2-normed squared is) to get global/actual error
+    //doing ddot instead was slower than doing dnrm2 then squaring
     eps = cblas_dnrm2(n, b, 1);
     eps *= eps;    
 
@@ -203,7 +204,7 @@ void SolverCG::Solve(double* b, double* x) {
 }
 
 //uses five point stencil to compute -ve laplacian of in, needs data from boundary ranks
-//compute interior, edges and corners -> Note, BCs are imposed  separately in ImposeBC
+//compute interior, edges and corners as each require different datasets -> Note, BCs are imposed  separately in ImposeBC
 void SolverCG::ApplyOperator(double* in, double* out) {
 
     //-----------------------------------------------------------------------------------------------------------------------------------//
@@ -288,19 +289,17 @@ void SolverCG::ApplyOperator(double* in, double* out) {
                         + (- bottomData[0] + 2.0*in[IDX(0,0)] - in[IDX(0,1)]) * dy2i;
         }
 
-        //compute bottom right corner of domain, unless process is on right or bottom boundary
+        //same logic for all other corners
         if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
             out[IDX(Nx-1,0)] = (- in[IDX(Nx-2,0)] + 2.0*in[IDX(Nx-1,0)] - rightData[0]) * dx2i
                         + (- bottomData[Nx-1] + 2.0*in[IDX(Nx-1,0)] - in[IDX(Nx-1,1)]) * dy2i;
         }
 
-        //compute top left corner of domain, unless process is on left or top boundary
         if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
             out[IDX(0,Ny-1)] = (- leftData[Ny-1] + 2.0*in[IDX(0,Ny-1)] - in[IDX(1,Ny-1)]) * dx2i
                         + (- in[IDX(0,Ny-2)] + 2.0*in[IDX(0,Ny-1)] - topData[0]) * dy2i;
         }
 
-        //compute top right corner of domain, unless process is on right or top boundary
         if(!((topRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
             out[IDX(Nx-1,Ny-1)] = (- in[IDX(Nx-2,Ny-1)] + 2.0*in[IDX(Nx-1,Ny-1)] - rightData[Ny-1]) * dx2i
                         + (- in[IDX(Nx-1,Ny-2)] + 2.0*in[IDX(Nx-1,Ny-1)] - topData[Nx-1]) * dy2i;
@@ -331,7 +330,6 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     //compute for general case (exclude single cell case)
     else if ((Nx != 1) & (Ny != 1)){
         //only compute bottom row if not at bottom boundary of Cartesian grid where BC is imposed
-        //same logic for top, left, and right
         if(bottomRank != MPI_PROC_NULL) {
             for(i = 1; i < Nx - 1; ++i) {
                 out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
@@ -339,6 +337,7 @@ void SolverCG::ApplyOperator(double* in, double* out) {
             }
         }
         
+        //same logic for top, left, and right
         if(topRank != MPI_PROC_NULL) {
             for(i = 1; i < Nx - 1; ++i) {
                 out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
@@ -453,15 +452,14 @@ void SolverCG::Precondition(double* in, double* out) {
         }
     }
     //---------------------------------------------Step 3: Precondition Corners of each Local Domain -----------------------------------------//
-    //No parallel here as overheads would be too much for calculating four datapoints
     
     //if process is on the left or bottom, impose BC on bottom left corner, otherwise, preconditon
-    //same logic for all other corners
     if( (leftRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))
         out[0] = in[0];
     else
         out[0] = in[0]*factor;
     
+    //same logic for all other corners
     if( (leftRank == MPI_PROC_NULL) | (topRank == MPI_PROC_NULL))
         out[IDX(0,Ny-1)] = in[IDX(0,Ny-1)];
     else

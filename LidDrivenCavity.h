@@ -9,7 +9,6 @@ class SolverCG;
  * @class LidDrivenCavity
  * @brief Class that describes the properties of the lid driven cavity problem.
  * 
- * 
  * <table>
  *   <tr>
  *     <td>
@@ -21,18 +20,20 @@ class SolverCG;
  *   </tr>
  * </table>
  * 
- * 
- * 
  * The fluid flow in this problem can be characterised in both time and space \f$ (x,y) \f$. This class contains methods that allow for the 
- * 2D incompressible Navier-Stokes equations to be evaluated on the problem domain \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ 
- * is the domain length in \f$ x \f$ direction and \f$ L_y \f$ is the domain length in the \f$ y \f$ direction. The problem time domain is \f$ t\in[0,T_f] \f$ 
+ * 2D incompressible Navier-Stokes equations to be evaluated via streamfunctions and vorticity on the problem domain 
+ * \f$ (x,y)\in[0,L_x]\times[0,L_y] \f$, where \f$ L_x \f$ is the domain length in \f$ x \f$ direction and \f$ L_y \f$ 
+ * is the domain length in the \f$ y \f$ direction. The problem time domain is \f$ t\in[0,T_f] \f$ 
  * where \f$ T_f \f$ is the final time. Results can be outputted to a text file.
- *  @note When implemented with MPI, LidDrivenCavity expects inputs to be describe the undiscretised global domain as 
+ * 
+ * @note When implemented with MPI, LidDrivenCavity expects inputs to be describe the undiscretised global domain as 
  * discretisation is done within this solver. This is to prevent the user from being confused over whether the Set functions
  * should take local or global values. However, all private member variables store local values not global values, unless
  * otherwise stated.
  * 
  * @note Row major storage format is used for matrices
+ * 
+ * @warning MPI ranks must satisfy \f$ P = p^2 \f$, otherwise program will terminate
  ***********************************************************************************************************************************************/
 class LidDrivenCavity
 {
@@ -94,7 +95,7 @@ public:
     void GetData(double* vOut, double* sOut);
 
     /**
-     * @brief Specify the problem domain size \f$ (x,y)\in[0,xlen]\times[0,ylen] \f$ and recomputes grid spacing dx and dy
+     * @brief Specify the problem domain size \f$ (x,y)\in[0,xlen]\times[0,ylen] \f$ and recomputes grid spacing \f$ dx \f$ and \f$ dy \f$
      * @note This takes in values for the global domain
      * @param[in] xlen  Length of global domain in the x direction
      * @param[in] ylen  Length of global domain in the y direction
@@ -102,7 +103,7 @@ public:
     void SetDomainSize(double xlen, double ylen);
     
     /**
-     * @brief Specify the grid size \f$ N_x \times N_y \f$ and recomputes grid spacing dx and dy
+     * @brief Specify the grid size \f$ N_x \times N_y \f$ and recomputes grid spacing \f$ dx \f$ and \f$ dy \f$
      * @note This takes in values for the global domain
      * @param[in] nx    Number of grid points in the x direction in global domain
      * @param[in] ny    Number of grid points in the y direction in global domain
@@ -185,14 +186,14 @@ private:
     int xDomainStart;                       ///<For the x direction, denotes where the local domain starts in the context of the global domain 
     int yDomainStart;                       ///<For the y direction, denotes where the local domain starts in the context of the global domain 
 
-    int rowRank;                            ///<rank of current process in #comm_row_grid
-    int colRank;                            ///<rank of current process in #comm_col_grid
-    int topRank;                            ///<rank of process above current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing above
-    int bottomRank;                         ///<rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
-    int leftRank;                           ///<rank of process to left of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to left
-    int rightRank;                          ///<rank of process to right of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to right
+    int rowRank;                            ///<Rank of current process in #comm_row_grid
+    int colRank;                            ///<Rank of current process in #comm_col_grid
+    int topRank;                            ///<Rank of process above current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing above
+    int bottomRank;                         ///<Rank of process to bottom of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing below
+    int leftRank;                           ///<Rank of process to left of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to left
+    int rightRank;                          ///<Rank of process to right of current process in Cartesian grid, -2 (MPI_PROC_NULL) if nothing to right
 
-    bool boundaryDomain;                    ///<denotes whether the process is at the boundary of the Cartesian grid #comm_Cart_grid
+    bool boundaryDomain;                    ///<Denotes whether the process is at the boundary of the Cartesian grid #comm_Cart_grid
 
     /// MPI_Request handle to check data send -> [0] = send to top, [1] = send to bottom, [2] = send left, [3] = send right
     MPI_Request requests[4];
@@ -209,7 +210,7 @@ private:
     double* tempLeft;                       ///<Temporarily stores data for left hand side of current local grid, to be sent left
     double* tempRight;                      ///<Temporarily stores data for right hand side of current local grid, to be sent right
 
-    SolverCG* cg = nullptr;                 ///<conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
+    SolverCG* cg = nullptr;                 ///<Conjugate gradient solver for Ax=b that can solve spatial domain aspect of the problem
 
     /**
      * @brief Deallocate memory associated with arrays and classes
@@ -228,6 +229,12 @@ private:
 
     /**
      * @brief Computes vorticity at the current time step from streamfunction at the current time step
+     * 
+     * @bug Currently small bug with processing special cases where local domain is single cell, column vector (\f$ N_x \times 1 \f$) or row vector
+     * (\f$ 1 \times N_y \f$). This error will lead to an erroneous solution. However, not a big issue, as realistically this case should never be
+     * encountered, as it is a very inefficient use of resources. For example, why would anyone solve a 5x5 grid with 16 processors? 
+     * This is only an issue if very small problems are used relative to number of processors, and until this bug is fixed, LidDrivenCavitySolver.cpp
+     * will prevent user from entering values that can lead to issues.
      ******************************************************************************************************************************************/
     void ComputeVorticity();
 
