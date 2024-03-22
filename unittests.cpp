@@ -856,7 +856,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
 
     //output file containing initial condition, in file name IntegratorTest; reference data in DataIntegratorTestCase
     std::string fileName = "IntegratorTest";
-    std::string refData = "DataIntegratorTestCase2";
+    std::string refData = "test/IntegratorRefData";
     test.WriteSolution(fileName);
     
     std::ifstream outputFile(fileName);             // Create streams for outputted data and reference data
