@@ -5,8 +5,9 @@ Parallel implementation of a lid driven cavity fluid solver with MPI and OpenMP.
 ## Table of Contents
 
 - [Overview](#Overview)
-- [Running](#Running-the-Code)
-
+- [Project Structure](#project-structure)
+- [Installation](#Installation)
+- [Running the Code](#Running-the-Code)
 
 ## Overview
 
@@ -25,15 +26,29 @@ As part of the HPC coursework, a serial lid driven cavity solver is parallelised
   </tr>
 </table>
 
+## Project Structure
+
+Source files for generating the code as well as the unit tests are found immediately. The test directory holds reference datasets for testing purposes and should be left untouched, while other directory holds support documents and images for documentation purposes.
+
+## Installation
+
+The submission provides all the source code. The following libraries are used and should therefore be installed
+
+ - OpenMP
+ - MPI (with mpiexec wrapper)
+ - BLAS (cblas wrapper)
+ - Boost::program_options
+
 ## Running the Code
 
-It is recommended to generate the doocumentation first using <code><span style="color: red;">make doc</span></code>. To obtain the exectuable ./solver, run <code><span style="color: red;">make</span></code>  to compile the project. Unit tests can be generated with <code><span style="color: red;">make unittests </span></code> and will generate the ./unittests executable. To clean up the directory, use <code><span style="color: red;">make clean</span></code>.
+It is recommended to generate the documentation first using <code><span style="color: red;">make doc</span></code>. To obtain the exectuable ./solver, run <code><span style="color: red;">make</span></code>  to compile the project. Unit tests can be generated with <code><span style="color: red;">make unittests </span></code> and will generate the ./unittests executable. To clean up the directory, use <code><span style="color: red;">make clean</span></code>.
 
 This code uses both OpenMP and MPI to parallelise the code. To control the number of threads, the environment variable OMP_NUM_THREADS should be set beforehand and number of processors set via -np. --bind-to none is recommended to prevent threads competing for the same core.
 
 ```bash
 $ export OMP_NUM_THREADS=1
-$ mpiexec --bind-to none -np 1 ./solver --helpSolver for the 2D lid-driven cavity incompressible flow problem:
+$ mpiexec --bind-to none -np 1 ./solver --help
+    Solver for the 2D lid-driven cavity incompressible flow problem:
   --Lx arg (=1)         Length of the domain in the x-direction.
   --Ly arg (=1)         Length of the domain in the y-direction.
   --Nx arg (=9)         Number of grid points in x-direction.
@@ -45,7 +60,7 @@ $ mpiexec --bind-to none -np 1 ./solver --helpSolver for the 2D lid-driven cavit
   --help                Print help message.
 ```
 
-An example program execution is shown below, with initial data written into initial.txt and final data written into final.txt.
+An example program execution is shown below, with initial data written into ic.txt and final data written into final.txt.
 
 ```bash
 
