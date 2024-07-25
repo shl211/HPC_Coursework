@@ -16,11 +16,11 @@ As part of the HPC coursework, a serial lid driven cavity solver is parallelised
 <table>
   <tr>
     <td>
-        <img src="other/domain.png" alt="Figure 1">
+        ![Figure 1: Lid driven cavity domain](other/domain.png)
         <p>Figure 1: Lid driven cavity domain</p>
     </td>
     <td>
-        <img src="other/discreteDomain.png" alt="Figure 2">
+        ![Figure 2: Lid driven cavity discretised domain](other/discreteDomain.png)
         <p>Figure 2: Lid driven cavity discretised domain</p>
     </td>
   </tr>
