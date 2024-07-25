@@ -2,4 +2,6 @@
 html/
 latex/
 
-#
+#data files
+ic.txt
+final.txt
