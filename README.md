@@ -8,10 +8,11 @@ Parallel implementation of a lid driven cavity fluid solver with MPI and OpenMP.
 - [Project Structure](#project-structure)
 - [Installation](#Installation)
 - [Running the Code](#Running-the-Code)
+- [References](#references)
 
 ## Overview
 
-As part of the HPC coursework, a serial lid driven cavity solver is parallelised with MPI and OpenMP. The problem to be solved is seen in Figure 1. The flow properties in the cavity at any time t is desired and must be computed via the 2D Navier-Stokes equation, which can be solved via discretised streamfunction and vorticity. A grid discretisation, in the form of a second-order central differencing equation, is generated, as seen in Figure 2. A preconditioned conjugate solver is used to solve the spatial aspect of the 2D Navier-Stokes equation. The time-domain aspect of the problem is then also solved by a five point stencil. By sequentially solving the spatial and time problem, the flow properties at any time t can be computed. A detailed discussion of the theoretical framework that is implemented can be found [here](other/assignment.pdf).
+As part of the HPC coursework, a serial lid driven cavity solver is parallelised with MPI and OpenMP. The problem to be solved is seen in Figure 1. The flow properties in the cavity at any time t is desired and must be computed via the 2D Navier-Stokes equation, which can be solved via discretised streamfunction and vorticity. A grid discretisation, in the form of a second-order central differencing equation, is generated, as seen in Figure 2. A preconditioned conjugate solver is used to solve the spatial aspect of the 2D Navier-Stokes equation. The time-domain aspect of the problem is then also solved by a five point stencil. By sequentially solving the spatial and time problem, the flow properties at any time t can be computed. A detailed discussion of the theoretical framework that is implemented is also provided \[[1](#references)\]. For doxygen users, this can be found [here](assignment.pdf); for Github users, this can be found [here](other/assignment.pdf).
 
 | ![Figure 1: Lid driven cavity domain](other/domain.png) | ![Figure 2: Lid driven cavity discretised domain](other/discreteDomain.png) |
 |:--:|:--:|
@@ -89,3 +90,7 @@ $ mpiexec --bind-to none -np 1 ./solver --Lx 1 --Ly 1 --Nx 201 --Ny 201 --Re 100
   Writing file final.txt
 
 ```
+
+## References
+
+[1] Dr Chris Cantwell. High-performance computing coursework assignment. Department of Aeronautics, Imperial College London, 2024.
