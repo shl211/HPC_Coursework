@@ -246,66 +246,31 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     //---------------------------------------------Step 2: Compute Local Domain Corners -----------------------------------------------------------------//
     //---------------------------------------------------------------------------------------------------------------------------------------------------//
     //references to edges => edge of each local domain; references to boundary => boundary of global domain
-    //handle edge cases where local domain is single cell, column vector, row vector
     
-    //if single cell domain not on global boundary, then access data from four processes
-    if((Nx == 1) &( Ny == 1) & !boundaryDomain) {
-        out[0] = ( - leftData[0] + 2.0*in[0] - rightData[0] ) * dx2i
-                + (- bottomData[0] + 2*in[0] - topData[0] ) * dy2i; 
-    }
-    //unless at global left/right where BC is imposed, if local domain is column vector, do:
-    else if((Nx == 1) & (Ny != 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL)) ) {
-        //compute 'top' corner, unless at top grid boundary already
-        if(topRank != MPI_PROC_NULL) {
-            out[Ny-1] = (- leftData[Ny-1] + 2.0*in[Ny-1] - rightData[Ny-1] ) * dx2i
-                    + (- in[Ny-2] + 2*in[Ny-1] - topData[0]) * dy2i; 
-        }
-        
-        //compute 'bottom' corner, unless at bottom grid boundary already
-        if(bottomRank != MPI_PROC_NULL) {
-            out[0] = (- leftData[0] + 2.0 * in[0] - rightData[0] ) * dx2i
-                    + (- bottomData[0] + 2*in[0] - in[1]) * dy2i;
-        }
-    }
-    //unless at global top/bottom where BC is imposed, if local domain is row vector, do:
-    else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL)) ) {
-        //compute 'left' corner, unless at LHS of grid already
-        if(leftRank != MPI_PROC_NULL) {
-            out[0] = ( - leftData[0] + 2.0 * in[0] - in[1] ) * dx2i
-                    + (- bottomData[0] + 2*in[0] - topData[0]) * dy2i;
-        }
-        
-        //compute 'right' corner, unless at RHS of grid already
-        if(rightRank != MPI_PROC_NULL) {
-            out[Nx-1] = (- in[Nx-2] + 2.0 * in[0] - rightData[0] ) * dx2i
-                    +(- bottomData[Nx-1] + 2 * in[0] - topData[Nx-1] ) * dy2i;
-        }
-    } 
-    else if((Nx != 1) & (Ny != 1)){
-        //otherwise, for general case where only two datapoints from other processes are needded:
-        //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
-        if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
-            out[IDX(0,0)] = (- leftData[0] + 2.0*in[IDX(0,0)] - in[IDX(1,0)]) * dx2i
-                        + (- bottomData[0] + 2.0*in[IDX(0,0)] - in[IDX(0,1)]) * dy2i;
-        }
 
-        //same logic for all other corners
-        if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-            out[IDX(Nx-1,0)] = (- in[IDX(Nx-2,0)] + 2.0*in[IDX(Nx-1,0)] - rightData[0]) * dx2i
-                        + (- bottomData[Nx-1] + 2.0*in[IDX(Nx-1,0)] - in[IDX(Nx-1,1)]) * dy2i;
-        }
-
-        if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
-            out[IDX(0,Ny-1)] = (- leftData[Ny-1] + 2.0*in[IDX(0,Ny-1)] - in[IDX(1,Ny-1)]) * dx2i
-                        + (- in[IDX(0,Ny-2)] + 2.0*in[IDX(0,Ny-1)] - topData[0]) * dy2i;
-        }
-
-        if(!((topRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-            out[IDX(Nx-1,Ny-1)] = (- in[IDX(Nx-2,Ny-1)] + 2.0*in[IDX(Nx-1,Ny-1)] - rightData[Ny-1]) * dx2i
-                        + (- in[IDX(Nx-1,Ny-2)] + 2.0*in[IDX(Nx-1,Ny-1)] - topData[Nx-1]) * dy2i;
-        }
+    //for general case where only two datapoints from other processes are needded:
+    //compute bottom left corner of domain, unless process is on left or bottom boundary, as already have BC there
+    if(!((bottomRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
+        out[IDX(0,0)] = (- leftData[0] + 2.0*in[IDX(0,0)] - in[IDX(1,0)]) * dx2i
+                    + (- bottomData[0] + 2.0*in[IDX(0,0)] - in[IDX(0,1)]) * dy2i;
     }
-    
+
+    //same logic for all other corners
+    if(!((bottomRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+        out[IDX(Nx-1,0)] = (- in[IDX(Nx-2,0)] + 2.0*in[IDX(Nx-1,0)] - rightData[0]) * dx2i
+                    + (- bottomData[Nx-1] + 2.0*in[IDX(Nx-1,0)] - in[IDX(Nx-1,1)]) * dy2i;
+    }
+
+    if(!((topRank == MPI_PROC_NULL) | (leftRank == MPI_PROC_NULL))) {
+        out[IDX(0,Ny-1)] = (- leftData[Ny-1] + 2.0*in[IDX(0,Ny-1)] - in[IDX(1,Ny-1)]) * dx2i
+                    + (- in[IDX(0,Ny-2)] + 2.0*in[IDX(0,Ny-1)] - topData[0]) * dy2i;
+    }
+
+    if(!((topRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
+        out[IDX(Nx-1,Ny-1)] = (- in[IDX(Nx-2,Ny-1)] + 2.0*in[IDX(Nx-1,Ny-1)] - rightData[Ny-1]) * dx2i
+                    + (- in[IDX(Nx-1,Ny-2)] + 2.0*in[IDX(Nx-1,Ny-1)] - topData[Nx-1]) * dy2i;
+    }
+
     //--------------------------------------------------------------------------------------------------------------------------//
     //----------------------------------Step 3 : Compute Local Domain Edges ----------------------------------------------------//
     //--------------------------------------------------------------------------------------------------------------------------//
@@ -313,53 +278,37 @@ void SolverCG::ApplyOperator(double* in, double* out) {
     'for' and 'sections' were tested and gains were negligible in some cases but pretty much always resulted in worse performance
     Test case Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T=0.1 were used for benchmark tests*/
         
-    //if column vector domain, compute edge unless at left or right global boundary as BC already imposed along entire column
-    if((Nx == 1) & (Ny > 1) & !((leftRank == MPI_PROC_NULL) | (rightRank == MPI_PROC_NULL))) {
-        for(j = 1; j < Ny - 1; ++j) {
-            out[j] = ( - leftData[j] + 2.0 * in[j] - rightData[j]) * dx2i
-                    + ( -  in[j-1] + 2.0 * in[j] - in[j+1]) * dy2i;
-        }
-    }
-    //if row vector domain, compute edge unless at top or bottom global boundary as BC already imposed along entire row
-    else if((Nx != 1) & (Ny == 1) & !((topRank == MPI_PROC_NULL) | (bottomRank == MPI_PROC_NULL))) {
+    //compute for general case
+    //only compute bottom row if not at bottom boundary of Cartesian grid where BC is imposed
+    if(bottomRank != MPI_PROC_NULL) {
         for(i = 1; i < Nx - 1; ++i) {
-            out[i] = ( - in[i-1] + 2.0 * in[i] - in[i+1] ) * dx2i
-                    + ( - bottomData[i] + 2.0 * in[i] - topData[i]) * dy2i;
-        }
-    }
-    //compute for general case (exclude single cell case)
-    else if ((Nx != 1) & (Ny != 1)){
-        //only compute bottom row if not at bottom boundary of Cartesian grid where BC is imposed
-        if(bottomRank != MPI_PROC_NULL) {
-            for(i = 1; i < Nx - 1; ++i) {
-                out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
-                            + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
-            }
-        }
-        
-        //same logic for top, left, and right
-        if(topRank != MPI_PROC_NULL) {
-            for(i = 1; i < Nx - 1; ++i) {
-                out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
-                            + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
-            }
-        }
-
-        if((Nx != 1) & (Ny != 1) & (leftRank != MPI_PROC_NULL)) {
-            for(j = 1; j < Ny - 1; ++j) {
-                out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
-                            + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
-            }
-        }
-                
-        if((Nx != 1) & (Ny != 1) & (rightRank != MPI_PROC_NULL)) {
-            for(j = 1; j < Ny - 1; ++j) {
-                out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
-                            + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
-            }
+            out[IDX(i,0)] = (- in[IDX(i-1,0)] + 2.0*in[IDX(i,0)] - in[IDX(i+1,0)] ) * dx2i
+                        + ( - bottomData[i] + 2.0*in[IDX(i,0)] - in[IDX(i,1)] ) * dy2i;
         }
     }
     
+    //same logic for top, left, and right
+    if(topRank != MPI_PROC_NULL) {
+        for(i = 1; i < Nx - 1; ++i) {
+            out[IDX(i,Ny-1)] = (- in[IDX(i-1,Ny-1)] + 2.0*in[IDX(i,Ny-1)] - in[IDX(i+1,Ny-1)] ) * dx2i
+                        + ( - in[IDX(i,Ny-2)] + 2.0 * in[IDX(i,Ny-1)] - topData[i]) * dy2i;
+        }
+    }
+
+    if((Nx != 1) & (Ny != 1) & (leftRank != MPI_PROC_NULL)) {
+        for(j = 1; j < Ny - 1; ++j) {
+            out[IDX(0,j)] = (- leftData[j] + 2.0*in[IDX(0,j)] - in[IDX(1,j)] ) * dx2i
+                        + ( - in[IDX(0,j-1)] + 2.0*in[IDX(0,j)] - in[IDX(0,j+1)] ) * dy2i;
+        }
+    }
+            
+    if((Nx != 1) & (Ny != 1) & (rightRank != MPI_PROC_NULL)) {
+        for(j = 1; j < Ny - 1; ++j) {
+            out[IDX(Nx-1,j)] = (- in[IDX(Nx-2,j)] + 2.0*in[IDX(Nx-1,j)] - rightData[j] ) * dx2i
+                        + ( - in[IDX(Nx-1,j-1)] + 2.0*in[IDX(Nx-1,j)] - in[IDX(Nx-1,j+1)] ) * dy2i;
+        }
+    }
+
     //complete MPI communications
     MPI_Waitall(4,requests,MPI_STATUSES_IGNORE);
 }

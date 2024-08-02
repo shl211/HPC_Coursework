@@ -229,12 +229,6 @@ private:
 
     /**
      * @brief Computes vorticity at the current time step from streamfunction at the current time step
-     * 
-     * @bug Currently small bug with processing special cases where local domain is single cell, column vector (\f$ N_x \times 1 \f$) or row vector
-     * (\f$ 1 \times N_y \f$). This error will lead to an erroneous solution. However, not a big issue, as realistically this case should never be
-     * encountered, as it is a very inefficient use of resources. For example, why would anyone solve a 5x5 grid with 16 processors? 
-     * This is only an issue if very small problems are used relative to number of processors, and until this bug is fixed, LidDrivenCavitySolver.cpp
-     * will prevent user from entering values that can lead to issues.
      ******************************************************************************************************************************************/
     void ComputeVorticity();
 

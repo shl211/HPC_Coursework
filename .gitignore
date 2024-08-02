@@ -5,6 +5,12 @@ latex/
 #data files
 ic.txt
 final.txt
+testOutput
+IntegratorTest
 
 #other
 .vscode
+*.log
+*.zip
+*.exe
+*.o
