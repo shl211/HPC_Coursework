@@ -1,0 +1,28 @@
+name: Doxygen Documentation
+
+on:
+  push:
+    branches:
+      - main  # or the branch you want to trigger on
+  pull_request:
+    branches:
+      - main  # or the branch you want to trigger on
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Doxygen
+        run: sudo apt-get install -y doxygen
+
+      - name: Generate Doxygen documentation
+        run: doxygen Doxyfile
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./html  # Update this to match the directory where your docs are generated
