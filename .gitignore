@@ -5,3 +5,6 @@ latex/
 #data files
 ic.txt
 final.txt
+
+#other
+.vscode
