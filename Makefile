@@ -16,7 +16,7 @@ TESTTARGET = unittests
 TESTOBJS = $(OBJ_DIR)/unittests.o $(OBJ_DIR)/LidDrivenCavity.o $(OBJ_DIR)/SolverCG.o
 
 # Other files/directories that should be deleted
-OTHER = testOutput IntegratorTest ic.txt final.txt html latex
+OTHER = testOutput IntegratorTest ic.txt final.txt docs/html docs/latex
 
 # Default target
 default: $(TARGET)
@@ -52,7 +52,7 @@ all: $(TARGET) $(TESTTARGET)
 
 # Generate documentation
 doc:
-	doxygen Doxyfile
+	doxygen docs/Doxyfile
 
 # Clean up generated files
 .PHONY: clean
