@@ -25,14 +25,16 @@ As part of the HPC coursework, a serial lid driven cavity solver is parallelised
 
 The project is organised into the following structure: 
 
-`project-root/`
-├── `build/`
-├── `include/`
-├── `src/`
-├── `test/`
-├── `docs/`
-├── `Makefile`
-└── `README.md`
+```
+project-root/
+├── build/
+├── include/
+├── src/
+├── test/
+├── docs/
+├── Makefile
+└── README.md
+```
 
 - `src/`: Contains .cpp implementation files.
 - `include/`: Contains .h header files.
