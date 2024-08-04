@@ -8,7 +8,7 @@ TARGET = solver
 OBJS = src/LidDrivenCavitySolver.o src/LidDrivenCavity.o src/SolverCG.o
 HDRS = include/LidDrivenCavity.h include/SolverCG.h
 TESTTARGET = unittests
-TESTOBJS = src/unittests.o src/LidDrivenCavity.o src/SolverCG.o
+TESTOBJS = test/unittests.o src/LidDrivenCavity.o src/SolverCG.o
 
 # Other files/directories that should be deleted
 OTHER = testOutput IntegratorTest ic.txt final.txt html latex
@@ -16,8 +16,12 @@ OTHER = testOutput IntegratorTest ic.txt final.txt html latex
 # Default target
 default: $(TARGET)
 
-# Pattern rule for object files
-src/%.o : src/%.cpp $(HDRS)
+# Pattern rule for object files in src directory
+src/%.o: src/%.cpp $(HDRS)
+	$(CXX) $(CXXFLAGS) -Iinclude -o $@ -c $<
+
+# Pattern rule for object files in test directory
+test/%.o: test/%.cpp $(HDRS)
 	$(CXX) $(CXXFLAGS) -Iinclude -o $@ -c $<
 
 # Build the main target
@@ -32,11 +36,11 @@ doc:
 	doxygen Doxyfile
 
 # Build the test target
-$(TESTTARGET): $(TESTOBJS) 
+$(TESTTARGET): $(TESTOBJS)
 	$(CXX) $(CXXFLAGS) -Iinclude -o $@ $^ $(LDLIBS)
 
 # Clean up generated files
 .PHONY: clean
 
 clean:
-	-rm -rf src/*.o $(TARGET) $(TESTTARGET) $(OTHER)
+	-rm -rf src/*.o test/*.o $(TARGET) $(TESTTARGET) $(OTHER)
