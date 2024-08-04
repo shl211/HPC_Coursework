@@ -856,7 +856,7 @@ BOOST_AUTO_TEST_CASE(LidDrivenCavity_Integrator)
 
     //output file containing initial condition, in file name IntegratorTest; reference data in DataIntegratorTestCase
     std::string fileName = "IntegratorTest";
-    std::string refData = "test/IntegratorRefData";
+    std::string refData = "test/IntegratorRefData"; //make is run from root, so file path relative to root
     test.WriteSolution(fileName);
     
     std::ifstream outputFile(fileName);             // Create streams for outputted data and reference data

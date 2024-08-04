@@ -1,30 +1,42 @@
+# Compiler and flags
 CXX = mpicxx -fopenmp
-CXXFLAGS = -std=c++11 -Wall -o2
-TARGET = solver
-OBJS = LidDrivenCavitySolver.o LidDrivenCavity.o SolverCG.o
-HDRS = LidDrivenCavity.h SolverCG.h
+CXXFLAGS = -std=c++11 -Wall -O2
 LDLIBS = -lboost_program_options -lblas
-TESTTARGET = unittests
-TESTOBJS = unittests.o LidDrivenCavity.o SolverCG.o
-OTHER = testOutput IntegratorTest ic.txt final.txt html latex	#other files/directories that should be deleted
 
+# Targets and sources
+TARGET = solver
+OBJS = src/LidDrivenCavitySolver.o src/LidDrivenCavity.o src/SolverCG.o
+HDRS = include/LidDrivenCavity.h include/SolverCG.h
+TESTTARGET = unittests
+TESTOBJS = src/unittests.o src/LidDrivenCavity.o src/SolverCG.o
+
+# Other files/directories that should be deleted
+OTHER = testOutput IntegratorTest ic.txt final.txt html latex
+
+# Default target
 default: $(TARGET)
 
-%.o : %.cpp $(HDRS)
-	$(CXX) $(CXXFLAGS) -o $@ -c $<
+# Pattern rule for object files
+src/%.o : src/%.cpp $(HDRS)
+	$(CXX) $(CXXFLAGS) -Iinclude -o $@ -c $<
 
+# Build the main target
 $(TARGET): $(OBJS)
 	$(CXX) -o $@ $^ $(LDLIBS)
 
+# Build all targets
 all: $(TARGET)
 
+# Generate documentation
 doc:
 	doxygen Doxyfile
 
+# Build the test target
 $(TESTTARGET): $(TESTOBJS) 
-	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDLIBS)
+	$(CXX) $(CXXFLAGS) -Iinclude -o $@ $^ $(LDLIBS)
 
+# Clean up generated files
 .PHONY: clean
 
 clean:
-	-rm -rf *.o $(TARGET) $(TESTTARGET) $(OTHER)
+	-rm -rf src/*.o $(TARGET) $(TESTTARGET) $(OTHER)
