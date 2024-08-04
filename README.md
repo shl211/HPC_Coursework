@@ -6,13 +6,15 @@ Parallel implementation of a lid driven cavity fluid solver with MPI and OpenMP.
 
 - [Overview](#Overview)
 - [Project Structure](#project-structure)
+- [Pre-Requisites](#pre-requisites)
 - [Installation](#Installation)
 - [Running the Code](#Running-the-Code)
+- [Troubleshooting](#Troubleshooting)
 - [References](#references)
 
 ## Overview
 
-As part of the HPC coursework, a serial lid driven cavity solver is parallelised with MPI and OpenMP. The problem to be solved is seen in Figure 1. The flow properties in the cavity at any time t is desired and must be computed via the 2D Navier-Stokes equation, which can be solved via discretised streamfunction and vorticity. A grid discretisation, in the form of a second-order central differencing equation, is generated, as seen in Figure 2. A preconditioned conjugate solver is used to solve the spatial aspect of the 2D Navier-Stokes equation. The time-domain aspect of the problem is then also solved by a five point stencil. By sequentially solving the spatial and time problem, the flow properties at any time t can be computed. A detailed discussion of the theoretical framework that is implemented is also provided \[[1](#references)\]. For doxygen users, this can be found [here](assignment.pdf); for Github users, this can be found [here](docs/assignment.pdf).
+As part of the HPC coursework, a serial lid driven cavity solver is parallelised with MPI and OpenMP. The problem to be solved is seen in Figure 1. The flow properties in the cavity at any time *t* is desired and must be computed via the 2D Navier-Stokes equation, which can be solved via discretised streamfunction and vorticity. A grid discretisation, in the form of a second-order central differencing equation, is generated, as seen in Figure 2. A preconditioned conjugate solver is used to solve the spatial aspect of the 2D Navier-Stokes equation. The time-domain aspect of the problem is then also solved by a five point stencil. By sequentially solving the spatial and time problem, the flow properties at any time t can be computed. A detailed discussion of the theoretical framework that is implemented is provided \[[1](#references)\]. For Doxygen users, this can be found [here](assignment.pdf); for Github users, this can be found [here](docs/assignment.pdf).
 
 | ![Figure 1: Lid driven cavity domain](docs/domain.png) | ![Figure 2: Lid driven cavity discretised domain](docs/discreteDomain.png) |
 |:--:|:--:|
@@ -21,22 +23,42 @@ As part of the HPC coursework, a serial lid driven cavity solver is parallelised
 
 ## Project Structure
 
-Source files for generating the code as well as the unit tests are found immediately. The test directory holds reference datasets for testing purposes and should be left untouched, while other directory holds support documents and images for documentation purposes.
+The project is organised into the following structure: 
 
-## Installation
+`project-root/`
+├── `build/`
+├── `include/`
+├── `src/`
+├── `test/`
+├── `docs/`
+├── `Makefile`
+└── `README.md`
 
-The submission provides all the source code. The following libraries are used and should therefore be installed
+- `src/`: Contains .cpp implementation files.
+- `include/`: Contains .h header files.
+- `test/`: Contains test files.
+- `docs/`: Contains documentation files. After running `make doc`, documentation can be found in `docs/html/`
+- `build/`: Stores object files and executables. A symbolic link in the root directory allows executables to be accessed with `./executable` rather than `./build/path/to/executable`.
+
+## Pre-requisites
+
+Ensure the following libraries are installed:
 
  - OpenMP
  - MPI (with mpiexec wrapper)
  - BLAS (cblas wrapper)
  - Boost::program_options
 
+## Installation
+
+1. Generate Documentation: Run make doc to create documentation in the docs/ directory.
+2. Build Executable: Run make to compile the project and generate the ./solver executable.
+3. Build Unit Tests: Run make unittests to generate the ./unittests executable.
+4. Clean Up: Run make clean to remove build artifacts.
+
 ## Running the Code
 
-It is recommended to generate the documentation first using <code><span style="color: red;">make doc</span></code>. To obtain the exectuable ./solver, run <code><span style="color: red;">make</span></code>  to compile the project. Unit tests can be generated with <code><span style="color: red;">make unittests </span></code> and will generate the ./unittests executable. To clean up the directory, use <code><span style="color: red;">make clean</span></code>.
-
-This code uses both OpenMP and MPI to parallelise the code. To control the number of threads, the environment variable OMP_NUM_THREADS should be set beforehand and number of processors set via -np. --bind-to none is recommended to prevent threads competing for the same core.
+This code uses both OpenMP and MPI for parallelisation. To control the number of threads, the environment variable `OMP_NUM_THREADS` should be set beforehand and number of processors set via `-np`. `--bind-to none` is recommended to prevent threads competing for the same core.
 
 ```bash
 $ export OMP_NUM_THREADS=1
@@ -90,6 +112,13 @@ $ mpiexec --bind-to none -np 1 ./solver --Lx 1 --Ly 1 --Nx 201 --Ny 201 --Re 100
   Writing file final.txt
 
 ```
+## Troubleshooting
+
+Some common issues are discussed here.
+
+### Code running very slowly
+
+Code running slowly even though problem size is small or using lots of processors? First check that the environment variable OMP_NUM_THREADS has been set using `echo $OMP_NUM_THREADS`. If this is empty set to `export OMP_NUM_THREADS=1`. If this is not the case, then ensure `--bind-to none` is used and make sure not using more threads than physically available.
 
 ## References
 
