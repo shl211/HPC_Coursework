@@ -34,7 +34,7 @@ int main(int argc, char* argv[])
             cout << "Invalide process size. Process size must be square number of size p^2 and greater than 0" << endl;
             
         MPI_Finalize();
-        return 1;
+        return 2;
     }
     
     //------------------------------------User program options to define problem ------------------------------------//
@@ -81,7 +81,7 @@ int main(int argc, char* argv[])
             cout << "Excessive number of processes (p^2) for specified grid size. Ensure 2*Nx < p and 2*Ny < p" << endl;
 
         MPI_Finalize();
-        return 1;
+        return 3;
     }
 
     //------------------------------------------Implement Parallel Solver---------------------------------------------------//
@@ -90,7 +90,7 @@ int main(int argc, char* argv[])
 
     LidDrivenCavity* solver = new LidDrivenCavity();
 
-    solver->SetDomainSize(vm["Lx"].as<double>(),vm["Ly"].as<double>());                     //configure the problem with user inputs
+    solver->SetDomainSize(vm["Lx"].as<double>(),vm["Ly"].as<double>());         //configure the problem with user inputs
     solver->SetGridSize(vm["Nx"].as<int>(),vm["Ny"].as<int>());
     solver->SetTimeStep(vm["dt"].as<double>());
     solver->SetFinalTime(vm["T"].as<double>());

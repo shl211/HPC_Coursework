@@ -4,17 +4,17 @@ Parallel implementation of a lid driven cavity fluid solver with MPI and OpenMP.
 
 ## Table of Contents
 
-- [Overview](#Overview)
+- [Overview](#overview)
 - [Project Structure](#project-structure)
 - [Pre-Requisites](#pre-requisites)
-- [Installation](#Installation)
-- [Running the Code](#Running-the-Code)
-- [Troubleshooting](#Troubleshooting)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
 - [References](#references)
 
 ## Overview
 
-As part of the HPC coursework, a serial lid driven cavity solver is parallelised with MPI and OpenMP. The problem to be solved is seen in Figure 1. The flow properties in the cavity at any time *t* is desired and must be computed via the 2D Navier-Stokes equation, which can be solved via discretised streamfunction and vorticity. A grid discretisation, in the form of a second-order central differencing equation, is generated, as seen in Figure 2. A preconditioned conjugate solver is used to solve the spatial aspect of the 2D Navier-Stokes equation. The time-domain aspect of the problem is then also solved by a five point stencil. By sequentially solving the spatial and time problem, the flow properties at any time t can be computed. A detailed discussion of the theoretical framework that is implemented is provided. For Doxygen users, this can be found [here](assignment.pdf); for Github users, this can be found [here](docs/assignment.pdf) \[[1](#references)\].
+As part of the HPC coursework, a serial lid driven cavity solver is parallelised with MPI and OpenMP. The problem to be solved is seen in Figure 1. The flow properties in the cavity at any time *t* is desired and must be computed via the 2D Navier-Stokes equation, which can be solved via discretised streamfunction and vorticity. A grid discretisation, in the form of a second-order central differencing equation, is generated, as seen in Figure 2. A preconditioned conjugate solver is used to solve the spatial aspect of the 2D Navier-Stokes equation. The time-domain aspect of the problem is then also solved by a five point stencil. By sequentially solving the spatial and time problem, the flow properties at any time t can be computed. A detailed discussion of the theoretical framework that is implemented is provided. For Doxygen users, this can be found [here](assignment.pdf); for Github users, this can be found [here](docs/assignment.pdf) [[1]](#references).
 
 | ![Figure 1: Lid driven cavity domain](docs/domain.png) | ![Figure 2: Lid driven cavity discretised domain](docs/discreteDomain.png) |
 |:--:|:--:|
@@ -53,12 +53,12 @@ Ensure the following libraries are installed:
 
 ## Installation
 
-1. Generate Documentation: Run `make doc` to create documentation in the `docs/` directory.
-2. Build Executable: Run `make` to compile the project and generate the `./solver` executable.
-3. Build Unit Tests: Run `make unittests` to generate the `./unittests` executable.
-4. Clean Up: Run `make clean` to remove build artifacts.
+1. **Generate Documentation**: Run `make doc` to create documentation in the `docs/` directory.
+2. **Build Executable**: Run `make` to compile the project and generate the `./solver` executable.
+3. **Build Unit Tests**: Run `make unittests` to generate the `./unittests` executable.
+4. **Clean Up**: Run `make clean` to remove build artifacts.
 
-## Running the Code
+## Usage
 
 This code uses both OpenMP and MPI for parallelisation. To control the number of threads, the environment variable `OMP_NUM_THREADS` should be set beforehand and number of processors set via `-np`. `--bind-to none` is recommended to prevent threads competing for the same core.
 
@@ -77,12 +77,11 @@ $ mpiexec --bind-to none -np 1 ./solver --help
   --help                Print help message.
 ```
 
-An example program execution is shown below, with initial data written into ic.txt and final data written into final.txt.
+An example program execution is shown below, with initial data written into `ic.txt` and final data written into `final.txt`.
 
 ```bash
 
 $ export OMP_NUM_THREADS=1
-
 $ mpiexec --bind-to none -np 1 ./solver --Lx 1 --Ly 1 --Nx 201 --Ny 201 --Re 1000 --dt 0.005 --T 1
 
   Grid size: 201 x 201
@@ -118,9 +117,9 @@ $ mpiexec --bind-to none -np 1 ./solver --Lx 1 --Ly 1 --Nx 201 --Ny 201 --Re 100
 
 Some common issues are discussed here.
 
-### Code running very slowly
+*Issue: Code running slowly even though problem size is small or using lots of processors?*
 
-Code running slowly even though problem size is small or using lots of processors? First check that the environment variable `OMP_NUM_THREADS` has been set using `echo $OMP_NUM_THREADS`. If this is empty set to `export OMP_NUM_THREADS=1`. If this is not the case, then ensure `--bind-to none` is used and make sure not using more threads than physically available.
+First check that the environment variable `OMP_NUM_THREADS` has been set using `echo $OMP_NUM_THREADS`. If this is empty set to `export OMP_NUM_THREADS=1`. If this is not the case, then ensure `--bind-to none` is used and make sure not using more threads than physically available.
 
 ## References
 

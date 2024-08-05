@@ -412,7 +412,7 @@ void LidDrivenCavity::ComputeVorticity() {
                     + dy2i * (2.0 * s[IDX(0,Ny-1)] - sTopData[0] - s[IDX(0,Ny-2)]);
     }
     
-    if(!((topRank == MPI_PROC_NULL )|| (rightRank == MPI_PROC_NULL))) {
+    if(!((topRank == MPI_PROC_NULL ) || (rightRank == MPI_PROC_NULL))) {
         v[IDX(Nx-1,Ny-1)] = dx2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sRightData[Ny-1] - s[IDX(Nx-2,Ny-1)])
                     + dy2i * (2.0 * s[IDX(Nx-1,Ny-1)] - sTopData[Nx-1] - s[IDX(Nx-1,Ny-2)]);
     }
@@ -421,7 +421,7 @@ void LidDrivenCavity::ComputeVorticity() {
     //--------------------------------------Step 3: Compute Vorticity on Edges of Local Domain--------------------------------------------//
     //------------------------------------------------------------------------------------------------------------------------------------//
 
-    //if process at bottom of grid, don't need to do anything as BC imposed
+    //if process at bottom of grid, don't need to do anything as BC already imposed
     if(bottomRank != MPI_PROC_NULL) {
         for(int i = 1; i < Nx - 1; ++i) {
             v[IDX(i,0)] =  dx2i * (2.0 * s[IDX(i,0)] - s[IDX(i+1,0)] - s[IDX(i-1,0)])
@@ -457,25 +457,20 @@ void LidDrivenCavity::ComputeVorticity() {
     //no parallel region here as testing with Lx,Ly=1, Nx,Ny=201,Re=1000,dt=0.005,T-0.1 always led to slower performance
     //note that no BCs are imposed on corners as per original code
 
-    double val1,val2;     
-
     //assign bottom BC, only special case is row vector (single cell is subset)
     if(bottomRank == MPI_PROC_NULL) {                     
 
         //otherwise, for general case at bottom of grid, impose these bottom BCs 
         for(int i = 1; i < Nx-1; ++i)
             v[IDX(i,0)] = 2.0 * dy2i * (s[IDX(i,0)]    - s[IDX(i,1)]);
-
-        val1 = s[IDX(0,1)];
-        val2 = s[IDX(Nx-1,1)];
         
         //if not bottom left global grid corner, also compute bottom left corner
         if(leftRank != MPI_PROC_NULL) 
-            v[IDX(0,0)] = 2.0 * dy2i * (s[IDX(0,0)] - val1);
+            v[IDX(0,0)] = 2.0 * dy2i * (s[IDX(0,0)] - s[IDX(0,1)]);
                 
         //if not top bottom global grid corner, also compute bottom right corner
         if(rightRank != MPI_PROC_NULL)
-            v[IDX(Nx-1,0)] = 2.0 * dy2i * (s[IDX(Nx-1,0)] - val2);
+            v[IDX(Nx-1,0)] = 2.0 * dy2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-1,1)]);
     }
     
     //assign top BC, same logic as bottom BCs
@@ -484,14 +479,11 @@ void LidDrivenCavity::ComputeVorticity() {
         for(int i = 1; i < Nx - 1; ++i)
             v[IDX(i,Ny-1)] = 2.0 * dy2i * (s[IDX(i,Ny-1)] - s[IDX(i,Ny-2)]) - 2.0 * dyi * U;
 
-        val1 = s[IDX(0,Ny-2)];
-        val2 = s[IDX(Nx-1,Ny-2)];
-
         if(leftRank != MPI_PROC_NULL)
-            v[IDX(0,Ny-1)] = 2.0 * dy2i * (s[IDX(0,Ny-1)] - val1) - 2.0 * dyi * U;
+            v[IDX(0,Ny-1)] = 2.0 * dy2i * (s[IDX(0,Ny-1)] - s[IDX(0,Ny-2)]) - 2.0 * dyi * U;
             
         if(rightRank != MPI_PROC_NULL)
-            v[IDX(Nx-1,Ny-1)] = 2.0 * dy2i * (s[IDX(Nx-1,Ny-1)] - val2) - 2.0 * dyi * U;
+            v[IDX(Nx-1,Ny-1)] = 2.0 * dy2i * (s[IDX(Nx-1,Ny-1)] - s[IDX(Nx-1,Ny-2)]) - 2.0 * dyi * U;
     }
     
     //assign left BC, only special case is column vector
@@ -501,16 +493,13 @@ void LidDrivenCavity::ComputeVorticity() {
         for(int j = 1; j < Ny - 1; ++j)
             v[IDX(0,j)] = 2.0 * dx2i * (s[IDX(0,j)] - s[IDX(1,j)]);
 
-        val1 = s[IDX(1,Ny-1)];
-        val2 = s[IDX(1,0)];
-        
         //if not top left process, also compute top left corner
         if(topRank != MPI_PROC_NULL)
-            v[IDX(0,Ny-1)] = 2.0 * dx2i * (s[IDX(0,Ny-1)] - val1);
+            v[IDX(0,Ny-1)] = 2.0 * dx2i * (s[IDX(0,Ny-1)] - s[IDX(1,Ny-1)]);
 
         //if not bottom left process, also compute bottom left corner
         if(bottomRank != MPI_PROC_NULL)
-            v[IDX(0,0)] = 2.0 * dx2i * (s[IDX(0,0)] - val2);
+            v[IDX(0,0)] = 2.0 * dx2i * (s[IDX(0,0)] - s[IDX(1,0)]);
     }
 
     //assign right BC, same logic as left
@@ -519,14 +508,11 @@ void LidDrivenCavity::ComputeVorticity() {
         for(int j = 1; j < Ny - 1; ++j)
             v[IDX(Nx-1,j)] = 2.0 * dx2i * (s[IDX(Nx-1,j)] - s[IDX(Nx-2,j)]);
 
-        val1 = s[IDX(Nx-2,Ny-1)];
-        val2 = s[IDX(Nx-2,0)];
-
         if(topRank != MPI_PROC_NULL)
-            v[IDX(Nx-1,Ny-1)] = 2.0 * dx2i * (s[IDX(Nx-1,Ny-1)] - val1);
+            v[IDX(Nx-1,Ny-1)] = 2.0 * dx2i * (s[IDX(Nx-1,Ny-1)] - s[IDX(Nx-2,Ny-1)]);
     
         if(bottomRank != MPI_PROC_NULL)
-            v[IDX(Nx-1,0)] = 2.0 * dx2i * (s[IDX(Nx-1,0)] - val2);
+            v[IDX(Nx-1,0)] = 2.0 * dx2i * (s[IDX(Nx-1,0)] - s[IDX(Nx-2,0)]);
     }
 
     //ensure all communications completed
