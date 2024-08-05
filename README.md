@@ -18,7 +18,7 @@ As part of the HPC coursework, a serial lid driven cavity solver is parallelised
 
 | ![Figure 1: Lid driven cavity domain](docs/domain.png) | ![Figure 2: Lid driven cavity discretised domain](docs/discreteDomain.png) |
 |:--:|:--:|
-| Figure 1: Lid driven cavity domain | Figure 2: Lid driven cavity discretised domain |
+| Figure 1: Lid driven cavity domain | Figure 2: Lid driven cavity discretised domain | 
 
 
 ## Project Structure
