@@ -53,10 +53,10 @@ Ensure the following libraries are installed:
 
 ## Installation
 
-1. Generate Documentation: Run make doc to create documentation in the docs/ directory.
-2. Build Executable: Run make to compile the project and generate the ./solver executable.
-3. Build Unit Tests: Run make unittests to generate the ./unittests executable.
-4. Clean Up: Run make clean to remove build artifacts.
+1. Generate Documentation: Run `make doc` to create documentation in the `docs/` directory.
+2. Build Executable: Run `make` to compile the project and generate the `./solver` executable.
+3. Build Unit Tests: Run `make unittests` to generate the `./unittests` executable.
+4. Clean Up: Run `make clean` to remove build artifacts.
 
 ## Running the Code
 
@@ -120,7 +120,7 @@ Some common issues are discussed here.
 
 ### Code running very slowly
 
-Code running slowly even though problem size is small or using lots of processors? First check that the environment variable OMP_NUM_THREADS has been set using `echo $OMP_NUM_THREADS`. If this is empty set to `export OMP_NUM_THREADS=1`. If this is not the case, then ensure `--bind-to none` is used and make sure not using more threads than physically available.
+Code running slowly even though problem size is small or using lots of processors? First check that the environment variable `OMP_NUM_THREADS` has been set using `echo $OMP_NUM_THREADS`. If this is empty set to `export OMP_NUM_THREADS=1`. If this is not the case, then ensure `--bind-to none` is used and make sure not using more threads than physically available.
 
 ## References
 
