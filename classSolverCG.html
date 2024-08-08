@@ -91,7 +91,7 @@ $(document).ready(function(){initNavTree('classSolverCG.html',''); initResizable
 </div><!--header-->
 <div class="contents">
 
-<p>Describes a preconditioned conjugate gradient solver that solves the equation <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png"/>.  
+<p>Describes a preconditioned conjugate gradient solver that solves the equation <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png" width="55" height="13"/>.  
  <a href="classSolverCG.html#details">More...</a></p>
 
 <p><code>#include &lt;<a class="el" href="SolverCG_8h_source.html">SolverCG.h</a>&gt;</code></p>
@@ -99,7 +99,7 @@ $(document).ready(function(){initNavTree('classSolverCG.html',''); initResizable
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
 <tr class="memitem:a858099b5fe1cc9750f9947f0f9452e4b"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSolverCG.html#a858099b5fe1cc9750f9947f0f9452e4b">SolverCG</a> (int pNx, int pNy, double pdx, double pdy, MPI_Comm &amp;rowGrid, MPI_Comm &amp;colGrid)</td></tr>
-<tr class="memdesc:a858099b5fe1cc9750f9947f0f9452e4b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constructor to create the solver by specifying the spatial domain of the problem <img class="formulaInl" alt="$ (x,y)\in[0,L_x]\times[0,L_y] $" src="form_1.png"/>.  <a href="classSolverCG.html#a858099b5fe1cc9750f9947f0f9452e4b">More...</a><br /></td></tr>
+<tr class="memdesc:a858099b5fe1cc9750f9947f0f9452e4b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Constructor to create the solver by specifying the spatial domain of the problem <img class="formulaInl" alt="$ (x,y)\in[0,L_x]\times[0,L_y] $" src="form_1.png" width="125" height="14"/>.  <a href="classSolverCG.html#a858099b5fe1cc9750f9947f0f9452e4b">More...</a><br /></td></tr>
 <tr class="separator:a858099b5fe1cc9750f9947f0f9452e4b"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a996c32d6fce0b553c981a6c1f86387e8"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSolverCG.html#a996c32d6fce0b553c981a6c1f86387e8">~SolverCG</a> ()</td></tr>
 <tr class="memdesc:a996c32d6fce0b553c981a6c1f86387e8"><td class="mdescLeft">&#160;</td><td class="mdescRight">Destructor to deallocate memory.  <a href="classSolverCG.html#a996c32d6fce0b553c981a6c1f86387e8">More...</a><br /></td></tr>
@@ -117,19 +117,19 @@ Public Member Functions</h2></td></tr>
 <tr class="memdesc:ga5ec57d4a5ec497c4c446991e47ad3d62"><td class="mdescLeft">&#160;</td><td class="mdescRight">Get the number of grid points in y direction, for testing purposes.  <a href="group__GetSCG.html#ga5ec57d4a5ec497c4c446991e47ad3d62">More...</a><br /></td></tr>
 <tr class="separator:ga5ec57d4a5ec497c4c446991e47ad3d62"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a8cc7c4b2651399f9dc5b5ef2bdfeebf7"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSolverCG.html#a8cc7c4b2651399f9dc5b5ef2bdfeebf7">Solve</a> (double *b, double *x)</td></tr>
-<tr class="memdesc:a8cc7c4b2651399f9dc5b5ef2bdfeebf7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Computes the solution to <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png"/> via a preconditioned conjugate gradient method. This equation is formulated as <img class="formulaInl" alt="$ Ax=b $" src="form_14.png"/>. Note that <img class="formulaInl" alt="$ A $" src="form_15.png"/> describes the coefficients of a second-order central-difference discretisation of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png"/>.  <a href="classSolverCG.html#a8cc7c4b2651399f9dc5b5ef2bdfeebf7">More...</a><br /></td></tr>
+<tr class="memdesc:a8cc7c4b2651399f9dc5b5ef2bdfeebf7"><td class="mdescLeft">&#160;</td><td class="mdescRight">Computes the solution to <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png" width="55" height="13"/> via a preconditioned conjugate gradient method. This equation is formulated as <img class="formulaInl" alt="$ Ax=b $" src="form_14.png" width="40" height="10"/>. Note that <img class="formulaInl" alt="$ A $" src="form_15.png" width="10" height="10"/> describes the coefficients of a second-order central-difference discretisation of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png" width="25" height="13"/>.  <a href="classSolverCG.html#a8cc7c4b2651399f9dc5b5ef2bdfeebf7">More...</a><br /></td></tr>
 <tr class="separator:a8cc7c4b2651399f9dc5b5ef2bdfeebf7"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-methods"></a>
 Private Member Functions</h2></td></tr>
 <tr class="memitem:ab386d54f7db50dee43c6bf0fb5d609f0"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSolverCG.html#ab386d54f7db50dee43c6bf0fb5d609f0">ApplyOperator</a> (double *<a class="el" href="classSolverCG.html#adcc49db5ef3a64571563a2f9daa1a708">p</a>, double *<a class="el" href="classSolverCG.html#ac31fe70cffbaf995a39bad50ddef6bf6">t</a>)</td></tr>
-<tr class="memdesc:ab386d54f7db50dee43c6bf0fb5d609f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Applies the second-order central-difference discretisation of operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png"/> such that <img class="formulaInl" alt="$ -\nabla^2 p = t $" src="form_20.png"/>.  <a href="classSolverCG.html#ab386d54f7db50dee43c6bf0fb5d609f0">More...</a><br /></td></tr>
+<tr class="memdesc:ab386d54f7db50dee43c6bf0fb5d609f0"><td class="mdescLeft">&#160;</td><td class="mdescRight">Applies the second-order central-difference discretisation of operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png" width="25" height="13"/> such that <img class="formulaInl" alt="$ -\nabla^2 p = t $" src="form_20.png" width="53" height="14"/>.  <a href="classSolverCG.html#ab386d54f7db50dee43c6bf0fb5d609f0">More...</a><br /></td></tr>
 <tr class="separator:ab386d54f7db50dee43c6bf0fb5d609f0"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:ad8c4220fab79a6f34b8aa068e29d6511"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSolverCG.html#ad8c4220fab79a6f34b8aa068e29d6511">Precondition</a> (double *<a class="el" href="classSolverCG.html#adcc49db5ef3a64571563a2f9daa1a708">p</a>, double *<a class="el" href="classSolverCG.html#ac31fe70cffbaf995a39bad50ddef6bf6">t</a>)</td></tr>
-<tr class="memdesc:ad8c4220fab79a6f34b8aa068e29d6511"><td class="mdescLeft">&#160;</td><td class="mdescRight">Preconditions the matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/>.  <a href="classSolverCG.html#ad8c4220fab79a6f34b8aa068e29d6511">More...</a><br /></td></tr>
+<tr class="memdesc:ad8c4220fab79a6f34b8aa068e29d6511"><td class="mdescLeft">&#160;</td><td class="mdescRight">Preconditions the matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/>.  <a href="classSolverCG.html#ad8c4220fab79a6f34b8aa068e29d6511">More...</a><br /></td></tr>
 <tr class="separator:ad8c4220fab79a6f34b8aa068e29d6511"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a252ab61ae011d656c12926681ee234dd"><td class="memItemLeft" align="right" valign="top">void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="classSolverCG.html#a252ab61ae011d656c12926681ee234dd">ImposeBC</a> (double *<a class="el" href="classSolverCG.html#adcc49db5ef3a64571563a2f9daa1a708">p</a>)</td></tr>
-<tr class="memdesc:a252ab61ae011d656c12926681ee234dd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Impose zero boundary conditions around the edge of the matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/>.  <a href="classSolverCG.html#a252ab61ae011d656c12926681ee234dd">More...</a><br /></td></tr>
+<tr class="memdesc:a252ab61ae011d656c12926681ee234dd"><td class="mdescLeft">&#160;</td><td class="mdescRight">Impose zero boundary conditions around the edge of the matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/>.  <a href="classSolverCG.html#a252ab61ae011d656c12926681ee234dd">More...</a><br /></td></tr>
 <tr class="separator:a252ab61ae011d656c12926681ee234dd"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="pri-attribs"></a>
@@ -223,8 +223,8 @@ Private Attributes</h2></td></tr>
 <tr class="separator:a06bc66e8f78f4712a93bccef697b825e"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p>Describes a preconditioned conjugate gradient solver that solves the equation <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png"/>. </p>
-<p>Describes a preconditioned conjugate gradient solver which solves the matrix equation <img class="formulaInl" alt="$ Ax=b $" src="form_14.png"/>, with max iteration number of 5000, and error tolerance of 1e-3. In this context, <img class="formulaInl" alt="$ A $" src="form_15.png"/> describes the coefficients of a second-order central-difference discretisation of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png"/>, <img class="formulaInl" alt="$ x $" src="form_3.png"/> describes the streamfunction and <img class="formulaInl" alt="$ b $" src="form_17.png"/> describes the vorticity (i.e. <img class="formulaInl" alt="$ -\nabla ^ 2 \psi = \omega $" src="form_18.png"/>). The problem domain is <img class="formulaInl" alt="$ (x,y)\in[0,L_x]\times[0,L_y] $" src="form_1.png"/>, where <img class="formulaInl" alt="$ L_x $" src="form_2.png"/> is the domain length in <img class="formulaInl" alt="$ x $" src="form_3.png"/> direction and <img class="formulaInl" alt="$ L_y $" src="form_4.png"/> is the domain length in the <img class="formulaInl" alt="$ y $" src="form_5.png"/> direction. </p><dl class="section note"><dt>Note</dt><dd>When implemented with MPI, <a class="el" href="classSolverCG.html" title="Describes a preconditioned conjugate gradient solver that solves the equation .">SolverCG</a> expects inputs to already be discretised into local domains by <a class="el" href="classLidDrivenCavity.html" title="Class that describes the properties of the lid driven cavity problem.">LidDrivenCavity</a>. All member variables describe the local problem domain, unless otherwise specified </dd></dl>
+<div class="textblock"><p>Describes a preconditioned conjugate gradient solver that solves the equation <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png" width="55" height="13"/>. </p>
+<p>Describes a preconditioned conjugate gradient solver which solves the matrix equation <img class="formulaInl" alt="$ Ax=b $" src="form_14.png" width="40" height="10"/>, with max iteration number of 5000, and error tolerance of 1e-3. In this context, <img class="formulaInl" alt="$ A $" src="form_15.png" width="10" height="10"/> describes the coefficients of a second-order central-difference discretisation of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png" width="25" height="13"/>, <img class="formulaInl" alt="$ x $" src="form_3.png" width="8" height="6"/> describes the streamfunction and <img class="formulaInl" alt="$ b $" src="form_17.png" width="5" height="10"/> describes the vorticity (i.e. <img class="formulaInl" alt="$ -\nabla ^ 2 \psi = \omega $" src="form_18.png" width="59" height="14"/>). The problem domain is <img class="formulaInl" alt="$ (x,y)\in[0,L_x]\times[0,L_y] $" src="form_1.png" width="125" height="14"/>, where <img class="formulaInl" alt="$ L_x $" src="form_2.png" width="14" height="13"/> is the domain length in <img class="formulaInl" alt="$ x $" src="form_3.png" width="8" height="6"/> direction and <img class="formulaInl" alt="$ L_y $" src="form_4.png" width="14" height="14"/> is the domain length in the <img class="formulaInl" alt="$ y $" src="form_5.png" width="8" height="9"/> direction. </p><dl class="section note"><dt>Note</dt><dd>When implemented with MPI, <a class="el" href="classSolverCG.html" title="Describes a preconditioned conjugate gradient solver that solves the equation .">SolverCG</a> expects inputs to already be discretised into local domains by <a class="el" href="classLidDrivenCavity.html" title="Class that describes the properties of the lid driven cavity problem.">LidDrivenCavity</a>. All member variables describe the local problem domain, unless otherwise specified </dd></dl>
 </div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
 <a id="a858099b5fe1cc9750f9947f0f9452e4b"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a858099b5fe1cc9750f9947f0f9452e4b">&#9670;&nbsp;</a></span>SolverCG()</h2>
@@ -276,7 +276,7 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Constructor to create the solver by specifying the spatial domain of the problem <img class="formulaInl" alt="$ (x,y)\in[0,L_x]\times[0,L_y] $" src="form_1.png"/>. </p>
+<p>Constructor to create the solver by specifying the spatial domain of the problem <img class="formulaInl" alt="$ (x,y)\in[0,L_x]\times[0,L_y] $" src="form_1.png" width="125" height="14"/>. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">pNx</td><td>Number of grid points in x direction </td></tr>
@@ -345,11 +345,11 @@ Private Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>Applies the second-order central-difference discretisation of operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png"/> such that <img class="formulaInl" alt="$ -\nabla^2 p = t $" src="form_20.png"/>. </p>
+<p>Applies the second-order central-difference discretisation of operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png" width="25" height="13"/> such that <img class="formulaInl" alt="$ -\nabla^2 p = t $" src="form_20.png" width="53" height="14"/>. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">p</td><td>Input data that the operator is applied to </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">t</td><td>Result of the discretisation <img class="formulaInl" alt="$ -\nabla^2 p $" src="form_21.png"/> </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">t</td><td>Result of the discretisation <img class="formulaInl" alt="$ -\nabla^2 p $" src="form_21.png" width="33" height="14"/> </td></tr>
   </table>
   </dd>
 </dl>
@@ -380,10 +380,10 @@ Private Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>Impose zero boundary conditions around the edge of the matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/>. </p>
+<p>Impose zero boundary conditions around the edge of the matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/>. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramdir">[in,out]</td><td class="paramname">p</td><td>On input, the matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/> ; on output, the matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/> with imposed zero boundary conditions </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">p</td><td>On input, the matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/> ; on output, the matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/> with imposed zero boundary conditions </td></tr>
   </table>
   </dd>
 </dl>
@@ -424,12 +424,12 @@ Private Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p>Preconditions the matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/>. </p>
-<p>Precondition all elements in matrix <img class="formulaInl" alt="$ p $" src="form_22.png"/> that do not correspond to the global domain boundary. Divides interior points by precondition factor <img class="formulaInl" alt="$ 2(dx^2 + dy^2) $" src="form_23.png"/> and leaves global domain boundaries untouched. Prevent ill-condition and improve convergence rate.</p>
+<p>Preconditions the matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/>. </p>
+<p>Precondition all elements in matrix <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/> that do not correspond to the global domain boundary. Divides interior points by precondition factor <img class="formulaInl" alt="$ 2(dx^2 + dy^2) $" src="form_23.png" width="68" height="15"/> and leaves global domain boundaries untouched. Prevent ill-condition and improve convergence rate.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">p</td><td>Input matrix to be preconditioned </td></tr>
-    <tr><td class="paramdir">[out]</td><td class="paramname">t</td><td>Output preconditioned <img class="formulaInl" alt="$ p $" src="form_22.png"/> matrix </td></tr>
+    <tr><td class="paramdir">[out]</td><td class="paramname">t</td><td>Output preconditioned <img class="formulaInl" alt="$ p $" src="form_22.png" width="8" height="9"/> matrix </td></tr>
   </table>
   </dd>
 </dl>
@@ -462,11 +462,11 @@ Private Attributes</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Computes the solution to <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png"/> via a preconditioned conjugate gradient method. This equation is formulated as <img class="formulaInl" alt="$ Ax=b $" src="form_14.png"/>. Note that <img class="formulaInl" alt="$ A $" src="form_15.png"/> describes the coefficients of a second-order central-difference discretisation of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png"/>. </p>
+<p>Computes the solution to <img class="formulaInl" alt="$ -\nabla ^ 2 x = b $" src="form_13.png" width="55" height="13"/> via a preconditioned conjugate gradient method. This equation is formulated as <img class="formulaInl" alt="$ Ax=b $" src="form_14.png" width="40" height="10"/>. Note that <img class="formulaInl" alt="$ A $" src="form_15.png" width="10" height="10"/> describes the coefficients of a second-order central-difference discretisation of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png" width="25" height="13"/>. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">b</td><td>The desired result (in this context, the vorticity) </td></tr>
-    <tr><td class="paramdir">[in,out]</td><td class="paramname">x</td><td>On input, initial guess <img class="formulaInl" alt="$ x_0 $" src="form_19.png"/>; on output the computed solution (in this context, the streamfunction) </td></tr>
+    <tr><td class="paramdir">[in,out]</td><td class="paramname">x</td><td>On input, initial guess <img class="formulaInl" alt="$ x_0 $" src="form_19.png" width="13" height="9"/>; on output the computed solution (in this context, the streamfunction) </td></tr>
   </table>
   </dd>
 </dl>
@@ -1189,7 +1189,7 @@ Here is the caller graph for this function:</div>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="classSolverCG.html">SolverCG</a></li>
-    <li class="footer">Generated on Thu Aug 8 2024 08:52:31 for HPC Coursework - Lid Driven Cavity Solver by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1 </li>
+    <li class="footer">Generated on Thu Aug 8 2024 09:00:27 for HPC Coursework - Lid Driven Cavity Solver by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1 </li>
   </ul>
 </div>
 </body>

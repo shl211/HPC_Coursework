@@ -134,7 +134,7 @@ Macros</h2></td></tr>
 <tr class="memdesc:a6b2a3852db8bb19ab6909bac01859985"><td class="mdescLeft">&#160;</td><td class="mdescRight">Boost unit tests of classes <a class="el" href="classSolverCG.html" title="Describes a preconditioned conjugate gradient solver that solves the equation .">SolverCG</a> and <a class="el" href="classLidDrivenCavity.html" title="Class that describes the properties of the lid driven cavity problem.">LidDrivenCavity</a>.  <a href="unittests_8cpp.html#a6b2a3852db8bb19ab6909bac01859985">More...</a><br /></td></tr>
 <tr class="separator:a6b2a3852db8bb19ab6909bac01859985"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aad70a03b0bde8b589ffc2e93660844ee"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="unittests_8cpp.html#aad70a03b0bde8b589ffc2e93660844ee">IDX</a>(I,  J)&#160;&#160;&#160;((J)*localNx + (I))</td></tr>
-<tr class="memdesc:aad70a03b0bde8b589ffc2e93660844ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to map coordinates <img class="formulaInl" alt="$ (i,j) $" src="form_24.png"/> onto its corresponding location in memory, assuming row-wise matrix storage.  <a href="unittests_8cpp.html#aad70a03b0bde8b589ffc2e93660844ee">More...</a><br /></td></tr>
+<tr class="memdesc:aad70a03b0bde8b589ffc2e93660844ee"><td class="mdescLeft">&#160;</td><td class="mdescRight">Macro to map coordinates <img class="formulaInl" alt="$ (i,j) $" src="form_24.png" width="24" height="14"/> onto its corresponding location in memory, assuming row-wise matrix storage.  <a href="unittests_8cpp.html#aad70a03b0bde8b589ffc2e93660844ee">More...</a><br /></td></tr>
 <tr class="separator:aad70a03b0bde8b589ffc2e93660844ee"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a name="func-members"></a>
@@ -217,11 +217,11 @@ Functions</h2></td></tr>
       </table>
 </div><div class="memdoc">
 
-<p>Macro to map coordinates <img class="formulaInl" alt="$ (i,j) $" src="form_24.png"/> onto its corresponding location in memory, assuming row-wise matrix storage. </p>
+<p>Macro to map coordinates <img class="formulaInl" alt="$ (i,j) $" src="form_24.png" width="24" height="14"/> onto its corresponding location in memory, assuming row-wise matrix storage. </p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
-    <tr><td class="paramname">I</td><td>coordinate <img class="formulaInl" alt="$ i $" src="form_25.png"/> denoting horizontal position of grid from left to right </td></tr>
-    <tr><td class="paramname">J</td><td>coordinate <img class="formulaInl" alt="$ j $" src="form_26.png"/> denoting vertical position of grid from bottom to top </td></tr>
+    <tr><td class="paramname">I</td><td>coordinate <img class="formulaInl" alt="$ i $" src="form_25.png" width="5" height="9"/> denoting horizontal position of grid from left to right </td></tr>
+    <tr><td class="paramname">J</td><td>coordinate <img class="formulaInl" alt="$ j $" src="form_26.png" width="6" height="11"/> denoting vertical position of grid from bottom to top </td></tr>
   </table>
   </dd>
 </dl>
@@ -666,7 +666,7 @@ Here is the call graph for this function:</div>
         </tr>
       </table>
 </div><div class="memdoc">
-<dl class="test"><dt><b><a class="el" href="test.html#_test000003">Test:</a></b></dt><dd>Sinusoidal test case for <a class="el" href="classSolverCG.html" title="Describes a preconditioned conjugate gradient solver that solves the equation .">SolverCG</a> which solves Ax=b. Since A is the coefficients of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png"/>, then the sinusoidal test case is <img class="formulaInl" alt="$ - \pi ^2 (k^2 + l^2) \sin(k \pi x) \sin (l \pi y) $" src="form_27.png"/>, on a domain <img class="formulaInl" alt="$ (x,y) \in [0, \frac{2}{k}] \times [0, \frac{2}{l}] $" src="form_28.png"/>. Domain choice ensures zero boundary conditions on domain edge is imposed. The solution should satsify <img class="formulaInl" alt="$ x = - \sin (k \pi x) \sin (l \pi y) $" src="form_29.png"/>. First guess x is generated randomly in domain <img class="formulaInl" alt="$ [0,1] $" src="form_30.png"/>, with zero boundary conditions imposed.</dd></dl>
+<dl class="test"><dt><b><a class="el" href="test.html#_test000003">Test:</a></b></dt><dd>Sinusoidal test case for <a class="el" href="classSolverCG.html" title="Describes a preconditioned conjugate gradient solver that solves the equation .">SolverCG</a> which solves Ax=b. Since A is the coefficients of the operator <img class="formulaInl" alt="$ -\nabla^2 $" src="form_16.png" width="25" height="13"/>, then the sinusoidal test case is <img class="formulaInl" alt="$ - \pi ^2 (k^2 + l^2) \sin(k \pi x) \sin (l \pi y) $" src="form_27.png" width="163" height="15"/>, on a domain <img class="formulaInl" alt="$ (x,y) \in [0, \frac{2}{k}] \times [0, \frac{2}{l}] $" src="form_28.png" width="111" height="16"/>. Domain choice ensures zero boundary conditions on domain edge is imposed. The solution should satsify <img class="formulaInl" alt="$ x = - \sin (k \pi x) \sin (l \pi y) $" src="form_29.png" width="128" height="14"/>. First guess x is generated randomly in domain <img class="formulaInl" alt="$ [0,1] $" src="form_30.png" width="24" height="14"/>, with zero boundary conditions imposed.</dd></dl>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -848,7 +848,7 @@ Here is the caller graph for this function:</div>
   </table>
   </dd>
 </dl>
-<dl class="section warning"><dt>Warning</dt><dd>MPI ranks must satisfy <img class="formulaInl" alt="$ P = p^2 $" src="form_8.png"/>, otherwise program will terminate </dd></dl>
+<dl class="section warning"><dt>Warning</dt><dd>MPI ranks must satisfy <img class="formulaInl" alt="$ P = p^2 $" src="form_8.png" width="38" height="14"/>, otherwise program will terminate </dd></dl>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
@@ -867,7 +867,7 @@ Here is the caller graph for this function:</div>
 <div id="nav-path" class="navpath"><!-- id is needed for treeview function! -->
   <ul>
     <li class="navelem"><a class="el" href="dir_13e138d54eb8818da29c3992edef070a.html">test</a></li><li class="navelem"><a class="el" href="unittests_8cpp.html">unittests.cpp</a></li>
-    <li class="footer">Generated on Thu Aug 8 2024 08:52:31 for HPC Coursework - Lid Driven Cavity Solver by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1 </li>
+    <li class="footer">Generated on Thu Aug 8 2024 09:00:27 for HPC Coursework - Lid Driven Cavity Solver by <a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.1 </li>
   </ul>
 </div>
 </body>
