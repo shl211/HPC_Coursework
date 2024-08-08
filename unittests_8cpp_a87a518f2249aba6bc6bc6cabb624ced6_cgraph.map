@@ -1,0 +1,9 @@
+<map id="BOOST_AUTO_TEST_CASE" name="BOOST_AUTO_TEST_CASE">
+<area shape="rect" id="node1" title=" " alt="" coords="5,132,196,159"/>
+<area shape="rect" id="node2" href="$unittests_8cpp.html#a9f6b154c17a03c21b80a3eced3eef630" title="Create Cartesian topology grid and column and row communicators." alt="" coords="247,5,403,32"/>
+<area shape="rect" id="node3" href="$group__GetSCG.html#ga55f0591f4cf3aa892f530f9de8f22c52" title="Get the x step size parameter dx, for testing purposes." alt="" coords="260,56,391,83"/>
+<area shape="rect" id="node4" href="$group__GetSCG.html#ga27827c0a2db2013bb4d6159843075fa3" title="Get the y step size parameter dy, for testing purposes." alt="" coords="260,107,391,133"/>
+<area shape="rect" id="node5" href="$group__GetSCG.html#ga1ce2cc786e90105ba1b66bb72005ac0a" title="Get the number of grid points in x direction, for testing purposes." alt="" coords="260,157,391,184"/>
+<area shape="rect" id="node6" href="$group__GetSCG.html#ga5ec57d4a5ec497c4c446991e47ad3d62" title="Get the number of grid points in y direction, for testing purposes." alt="" coords="260,208,391,235"/>
+<area shape="rect" id="node7" href="$unittests_8cpp.html#aefd6e1d9919e182753e355e725fba1e0" title="Split the global lid driven cavity domain into local grid cavity for each MPI process." alt="" coords="244,259,407,285"/>
+</map>

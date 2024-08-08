@@ -1,0 +1,21 @@
+var searchData=
+[
+  ['getdata_139',['GetData',['../classLidDrivenCavity.html#ac1b1debe7f78f3f25c5f3ff7fb478a6e',1,'LidDrivenCavity']]],
+  ['getdt_140',['GetDt',['../group__GetGLDC.html#ga5434aea763e17a85329f8168bb6cb027',1,'LidDrivenCavity']]],
+  ['getdx_141',['GetDx',['../group__GetGLDC.html#gaf8ec5d19e0c133d0633aa798d8d3f155',1,'LidDrivenCavity::GetDx()'],['../group__GetSCG.html#ga55f0591f4cf3aa892f530f9de8f22c52',1,'SolverCG::GetDx()']]],
+  ['getdy_142',['GetDy',['../group__GetGLDC.html#ga14416e61cdcb84cfdedef2096a64da45',1,'LidDrivenCavity::GetDy()'],['../group__GetSCG.html#ga27827c0a2db2013bb4d6159843075fa3',1,'SolverCG::GetDy()']]],
+  ['getgloballx_143',['GetGlobalLx',['../group__GetGLDC.html#gab78f3bb823d6dd1ae76d08817413b963',1,'LidDrivenCavity']]],
+  ['getglobally_144',['GetGlobalLy',['../group__GetGLDC.html#gac404f4297778a93a1e780209667e1809',1,'LidDrivenCavity']]],
+  ['getglobalnpts_145',['GetGlobalNpts',['../group__GetGLDC.html#ga6d141ec0b9e10c140a382ebc6f32e47b',1,'LidDrivenCavity']]],
+  ['getglobalnx_146',['GetGlobalNx',['../group__GetGLDC.html#ga75935b39bc3d710e58843ad2c82967ad',1,'LidDrivenCavity']]],
+  ['getglobalny_147',['GetGlobalNy',['../group__GetGLDC.html#ga7350c1815a1ece2c83db4b1f93bfea8b',1,'LidDrivenCavity']]],
+  ['getlx_148',['GetLx',['../group__GetLDC.html#ga79a515ffaf80b1f7c5de8ddb0e50e8a9',1,'LidDrivenCavity']]],
+  ['getly_149',['GetLy',['../group__GetLDC.html#ga77ff87f9520ba198be5462550ee82fc7',1,'LidDrivenCavity']]],
+  ['getnpts_150',['GetNpts',['../group__GetLDC.html#ga9951053954da432203d9c9246ab4b954',1,'LidDrivenCavity']]],
+  ['getnu_151',['GetNu',['../group__GetGLDC.html#ga6220a4fcccb8a27be0b894b7762422c5',1,'LidDrivenCavity']]],
+  ['getnx_152',['GetNx',['../group__GetLDC.html#ga50c360a37a2cec12f1e3595977392640',1,'LidDrivenCavity::GetNx()'],['../group__GetSCG.html#ga1ce2cc786e90105ba1b66bb72005ac0a',1,'SolverCG::GetNx()']]],
+  ['getny_153',['GetNy',['../group__GetLDC.html#ga1ebcb975f9515aeb4540259f397225fb',1,'LidDrivenCavity::GetNy()'],['../group__GetSCG.html#ga5ec57d4a5ec497c4c446991e47ad3d62',1,'SolverCG::GetNy()']]],
+  ['getre_154',['GetRe',['../group__GetGLDC.html#ga61514604ebdf9273d5fd4042866d288a',1,'LidDrivenCavity']]],
+  ['gett_155',['GetT',['../group__GetGLDC.html#ga865666cf49c4b1b7964bea6c4a0ba8e3',1,'LidDrivenCavity']]],
+  ['getu_156',['GetU',['../group__GetGLDC.html#ga5b45eb1e117e784aef33f43595d7c74f',1,'LidDrivenCavity']]]
+];

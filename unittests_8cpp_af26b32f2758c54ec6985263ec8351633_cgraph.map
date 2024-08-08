@@ -1,0 +1,6 @@
+<map id="BOOST_AUTO_TEST_CASE" name="BOOST_AUTO_TEST_CASE">
+<area shape="rect" id="node1" title=" " alt="" coords="5,56,196,83"/>
+<area shape="rect" id="node2" href="$unittests_8cpp.html#a9f6b154c17a03c21b80a3eced3eef630" title="Create Cartesian topology grid and column and row communicators." alt="" coords="247,5,403,32"/>
+<area shape="rect" id="node3" href="$classSolverCG.html#a8cc7c4b2651399f9dc5b5ef2bdfeebf7" title="Computes the solution to &#160;via a preconditioned conjugate gradient method. This equation is formulated..." alt="" coords="262,56,389,83"/>
+<area shape="rect" id="node4" href="$unittests_8cpp.html#aefd6e1d9919e182753e355e725fba1e0" title="Split the global lid driven cavity domain into local grid cavity for each MPI process." alt="" coords="244,107,407,133"/>
+</map>

@@ -1,0 +1,28 @@
+var searchData=
+[
+  ['get_20liddrivencavity_20global_20domain_20parameters_22',['Get LidDrivenCavity Global Domain Parameters',['../group__GetGLDC.html',1,'']]],
+  ['get_20liddrivencavity_20local_20domain_20parameters_23',['Get LidDrivenCavity Local Domain Parameters',['../group__GetLDC.html',1,'']]],
+  ['get_20solvercg_20domain_20parameters_24',['Get SolverCG Domain Parameters',['../group__GetSCG.html',1,'']]],
+  ['getdata_25',['GetData',['../classLidDrivenCavity.html#ac1b1debe7f78f3f25c5f3ff7fb478a6e',1,'LidDrivenCavity']]],
+  ['getdt_26',['GetDt',['../group__GetGLDC.html#ga5434aea763e17a85329f8168bb6cb027',1,'LidDrivenCavity']]],
+  ['getdx_27',['GetDx',['../group__GetGLDC.html#gaf8ec5d19e0c133d0633aa798d8d3f155',1,'LidDrivenCavity::GetDx()'],['../group__GetSCG.html#ga55f0591f4cf3aa892f530f9de8f22c52',1,'SolverCG::GetDx()']]],
+  ['getdy_28',['GetDy',['../group__GetSCG.html#ga27827c0a2db2013bb4d6159843075fa3',1,'SolverCG::GetDy()'],['../group__GetGLDC.html#ga14416e61cdcb84cfdedef2096a64da45',1,'LidDrivenCavity::GetDy()']]],
+  ['getgloballx_29',['GetGlobalLx',['../group__GetGLDC.html#gab78f3bb823d6dd1ae76d08817413b963',1,'LidDrivenCavity']]],
+  ['getglobally_30',['GetGlobalLy',['../group__GetGLDC.html#gac404f4297778a93a1e780209667e1809',1,'LidDrivenCavity']]],
+  ['getglobalnpts_31',['GetGlobalNpts',['../group__GetGLDC.html#ga6d141ec0b9e10c140a382ebc6f32e47b',1,'LidDrivenCavity']]],
+  ['getglobalnx_32',['GetGlobalNx',['../group__GetGLDC.html#ga75935b39bc3d710e58843ad2c82967ad',1,'LidDrivenCavity']]],
+  ['getglobalny_33',['GetGlobalNy',['../group__GetGLDC.html#ga7350c1815a1ece2c83db4b1f93bfea8b',1,'LidDrivenCavity']]],
+  ['getlx_34',['GetLx',['../group__GetLDC.html#ga79a515ffaf80b1f7c5de8ddb0e50e8a9',1,'LidDrivenCavity']]],
+  ['getly_35',['GetLy',['../group__GetLDC.html#ga77ff87f9520ba198be5462550ee82fc7',1,'LidDrivenCavity']]],
+  ['getnpts_36',['GetNpts',['../group__GetLDC.html#ga9951053954da432203d9c9246ab4b954',1,'LidDrivenCavity']]],
+  ['getnu_37',['GetNu',['../group__GetGLDC.html#ga6220a4fcccb8a27be0b894b7762422c5',1,'LidDrivenCavity']]],
+  ['getnx_38',['GetNx',['../group__GetLDC.html#ga50c360a37a2cec12f1e3595977392640',1,'LidDrivenCavity::GetNx()'],['../group__GetSCG.html#ga1ce2cc786e90105ba1b66bb72005ac0a',1,'SolverCG::GetNx()']]],
+  ['getny_39',['GetNy',['../group__GetLDC.html#ga1ebcb975f9515aeb4540259f397225fb',1,'LidDrivenCavity::GetNy()'],['../group__GetSCG.html#ga5ec57d4a5ec497c4c446991e47ad3d62',1,'SolverCG::GetNy()']]],
+  ['getre_40',['GetRe',['../group__GetGLDC.html#ga61514604ebdf9273d5fd4042866d288a',1,'LidDrivenCavity']]],
+  ['gett_41',['GetT',['../group__GetGLDC.html#ga865666cf49c4b1b7964bea6c4a0ba8e3',1,'LidDrivenCavity']]],
+  ['getu_42',['GetU',['../group__GetGLDC.html#ga5b45eb1e117e784aef33f43595d7c74f',1,'LidDrivenCavity']]],
+  ['globallx_43',['globalLx',['../classLidDrivenCavity.html#a82d32e140dad8e6a9cbd6cbfb55d9254',1,'LidDrivenCavity']]],
+  ['globally_44',['globalLy',['../classLidDrivenCavity.html#a05513a66ec6c75da572b22ee29b4c004',1,'LidDrivenCavity']]],
+  ['globalnx_45',['globalNx',['../classLidDrivenCavity.html#a7397715fb7a225d4cf8ca1c023bca6ed',1,'LidDrivenCavity::globalNx()'],['../classSolverCG.html#a2a78e878c5a7a3d8ff43e9488890e4b2',1,'SolverCG::globalNx()']]],
+  ['globalny_46',['globalNy',['../classLidDrivenCavity.html#a27873f8a271959e36bc075b463ed103c',1,'LidDrivenCavity::globalNy()'],['../classSolverCG.html#a35157fc29c611036d8304592668d2a08',1,'SolverCG::globalNy()']]]
+];
