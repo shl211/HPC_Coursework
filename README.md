@@ -1,6 +1,6 @@
-# HPC Lid Driven Cavity Coursework 2024
+# HPC Parallel Lid Driven Cavity Coursework 2024
 
-Parallel implementation of a lid driven cavity fluid solver with MPI and OpenMP. Written by Stephen Liu.
+Parallel implementation of a lid driven cavity fluid solver with MPI and OpenMP. This was written as part of my HPC coursework 2024, for which I obtained 98% for this piece of coursework.
 
 ## Table of Contents
 
