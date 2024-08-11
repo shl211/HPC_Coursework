@@ -25,7 +25,7 @@
 var NAVTREE =
 [
   [ "HPC Coursework - Lid Driven Cavity Solver", "index.html", [
-    [ "HPC Lid Driven Cavity Coursework 2024", "index.html", [
+    [ "HPC Parallel Lid Driven Cavity Coursework 2024", "index.html", [
       [ "Table of Contents", "index.html#autotoc_md1", null ],
       [ "Overview", "index.html#autotoc_md2", null ],
       [ "Project Structure", "index.html#autotoc_md3", null ],
